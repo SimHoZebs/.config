@@ -15,12 +15,6 @@
       pkgs = nixpkgs.legacyPackages.${system};
     in {
 
-      homeConfigurations.ho = home-manager.lib.homeManagerConfiguration {
-        pkgs = pkgs;
-        modules = [
-          ./home.nix
-      ];
-      };
 
       formatter.${system} = pkgs.nixfmt-rfc-style;
 
@@ -33,11 +27,10 @@
           # System configuration
           ({ config, pkgs, ... }: {
             # Hardware and boot configuration
+            hardware.enableAllFirmware = true;
             boot = {
               kernelModules = [ "e1000e" ];
             };
-
-            hardware.enableAllFirmware = true;
 
             # Networking configuration
             networking = {
@@ -52,7 +45,9 @@
             # System packages
             environment.systemPackages = with pkgs; [
               vim
+              nixfmt-rfc-style
             ];
+
             nixpkgs.config.allowUnfree = true;
 
             # Enable home-manager
@@ -81,6 +76,13 @@
             system.stateVersion = "24.05";
           })
         ];
+      };
+
+      homeConfigurations.ho = home-manager.lib.homeManagerConfiguration {
+        pkgs = pkgs;
+        modules = [
+          ./home.nix
+      ];
       };
     };
 }

@@ -12,7 +12,7 @@ in
   # Install packages for the user
   home.packages = with pkgs; [
   curl
-wslu
+            wslu
     neovim
     fzf
     lazygit
