@@ -9,14 +9,17 @@
     };
   };
 
-  outputs = { self, nixpkgs, home-manager }: 
+  outputs =
+    {
+      self,
+      nixpkgs,
+      home-manager,
+    }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
-    in {
-
-
-      formatter.${system} = pkgs.nixfmt-rfc-style;
+    in
+    {
 
       nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
         inherit system;
@@ -25,56 +28,59 @@
           "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
 
           # System configuration
-          ({ config, pkgs, ... }: {
-            # Hardware and boot configuration
-            hardware.enableAllFirmware = true;
-            boot = {
-              kernelModules = [ "e1000e" ];
-            };
-
-            # Networking configuration
-            networking = {
-              networkmanager.enable = true;
-            };
-
-            # NVIDIA configuration (choose one if applicable):
-            # services.xserver.videoDrivers = [ "nouveau" ]; # Open-source
-            services.xserver.videoDrivers = [ "nvidia" ]; # Proprietary
-            # hardware.nvidia.package = config.pkgs.linuxPackages.nvidiaPackages.stable;
-
-            # System packages
-            environment.systemPackages = with pkgs; [
-              vim
-              nixfmt-rfc-style
-            ];
-
-            nixpkgs.config.allowUnfree = true;
-
-            # Enable home-manager
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-            };
-
-            # User configuration
-            users = {
-              mutableUsers = false;
-              users = {
-                nixos = {
-                  isNormalUser = true;
-                  openssh.authorizedKeys.keys = [
-                    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBRGhD1hvAfgEHsSr5INZTOah/zCXvi7aZs+3qc/bBhJ"
-                  ];
-                  extraGroups = [ "wheel" ];
-                  initialPassword = "nixos";
-                };
-                root.initialPassword = "password";
+          (
+            { config, pkgs, ... }:
+            {
+              # Hardware and boot configuration
+              hardware.enableAllFirmware = true;
+              boot = {
+                kernelModules = [ "e1000e" ];
               };
-            };
 
-            # System state version
-            system.stateVersion = "24.05";
-          })
+              # Networking configuration
+              networking = {
+                networkmanager.enable = true;
+              };
+
+              # NVIDIA configuration (choose one if applicable):
+              # services.xserver.videoDrivers = [ "nouveau" ]; # Open-source
+              services.xserver.videoDrivers = [ "nvidia" ]; # Proprietary
+              # hardware.nvidia.package = config.pkgs.linuxPackages.nvidiaPackages.stable;
+
+              # System packages
+              environment.systemPackages = with pkgs; [
+                vim
+                nixfmt-rfc-style
+              ];
+
+              nixpkgs.config.allowUnfree = true;
+
+              # Enable home-manager
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+              };
+
+              # User configuration
+              users = {
+                mutableUsers = false;
+                users = {
+                  nixos = {
+                    isNormalUser = true;
+                    openssh.authorizedKeys.keys = [
+                      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBRGhD1hvAfgEHsSr5INZTOah/zCXvi7aZs+3qc/bBhJ"
+                    ];
+                    extraGroups = [ "wheel" ];
+                    initialPassword = "nixos";
+                  };
+                  root.initialPassword = "password";
+                };
+              };
+
+              # System state version
+              system.stateVersion = "24.05";
+            }
+          )
         ];
       };
 
@@ -82,8 +88,7 @@
         pkgs = pkgs;
         modules = [
           ./home.nix
-      ];
+        ];
       };
     };
 }
-
