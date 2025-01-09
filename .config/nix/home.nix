@@ -10,6 +10,7 @@
   # Install packages for the user
   home.packages = with pkgs; [
   curl
+wslu
     neovim
     fzf
     lazygit
@@ -18,7 +19,6 @@
     wget
     gh
     zoxide
-    tmux # This will be managed by Home Manager
     git
     rustup
     nodejs
@@ -27,6 +27,53 @@
     cmake
     gcc
   ];
+
+  programs.bash = {
+    enable = true;
+    enableCompletion = true; # Enables programmable completion
+    shellAliases = {
+      ll = "ls -alF";
+      la = "ls -A";
+      l = "ls -CF";
+      alert = "notify-send --urgency=low -i \"$([ $? = 0 ] && echo terminal || echo error)\" \"$(history|tail -n1|sed -e 's/^\s*[0-9]\\+\\s*//;s/[;&|]\\s*alert$//')\"";
+      grep = "grep --color=auto";
+      fgrep = "fgrep --color=auto";
+      egrep = "egrep --color=auto";
+      lg = "lazygit";
+    };
+    initExtra = ''
+      # History settings
+      HISTCONTROL=ignoreboth
+      shopt -s histappend
+      HISTSIZE=1000
+      HISTFILESIZE=2000
+      shopt -s checkwinsize
+
+      # Prompt
+      case "$TERM" in
+        xterm-color|*-256color) color_prompt=yes;;
+      esac
+
+      # dircolors
+      eval "$(dircolors -b)" # Use system dircolors
+
+      # Other environment variables and settings from your .bashrc
+      export PNPM_HOME="$HOME/.local/share/pnpm"
+      export PATH="$PNPM_HOME:$PATH"
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+      [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+      eval "$(zoxide init bash --cmd cd)"
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+      export XDG_RUNTIME_DIR="/tmp/XDG_RUNTIME_DIR/"
+      mkdir -p /tmp/XDG_RUNTIME_DIR/
+      chmod 777 /tmp/XDG_RUNTIME_DIR/
+      . "$HOME/.cargo/env"
+    '';
+  };
 
   programs.tmux = {
     enable = true;
