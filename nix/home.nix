@@ -32,6 +32,7 @@ in
     cmake
     gcc
     nixfmt-rfc-style
+    tailscale
   ];
 
   programs.bash = {
@@ -47,6 +48,7 @@ in
   programs.tmux = {
     enable = true;
     plugins = with pkgs.tmuxPlugins; [
+      sensible
       tmux-powerline
     ];
     extraConfig = ''
