@@ -14,18 +14,6 @@ case "$TERM" in
     ;;
 esac
 
-export PNPM_HOME="$HOME/.local/share/pnpm"
-export PATH="$PNPM_HOME:$PATH"
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
-eval "$(zoxide init bash --cmd cd)"
-if [ -f '/home/${USER}/google-cloud-sdk/path.bash.inc' ]; then . '/home/${USER}/google-cloud-sdk/path.bash.inc'; fi
-if [ -f '/home/${USER}/google-cloud-sdk/completion.bash.inc' ]; then . '/home/${USER}/google-cloud-sdk/completion.bash.inc'; fi
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-export XDG_RUNTIME_DIR="/tmp/XDG_RUNTIME_DIR/"
 mkdir -p /tmp/XDG_RUNTIME_DIR/
 chmod 777 /tmp/XDG_RUNTIME_DIR/
 
