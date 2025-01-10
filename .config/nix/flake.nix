@@ -51,7 +51,10 @@
               environment.systemPackages = with pkgs; [
                 vim
                 nixfmt-rfc-style
+                openssh
               ];
+
+              services.openssh.enable = true;
 
               nixpkgs.config.allowUnfree = true;
 

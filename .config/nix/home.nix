@@ -13,6 +13,7 @@ in
 
   # Install packages for the user
   home.packages = with pkgs; [
+    openssh
     curl
     wslu
     neovim
