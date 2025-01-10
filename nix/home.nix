@@ -36,12 +36,11 @@ in
 
   programs.bash = {
     enable = true;
-    enableCompletion = true; # Enables programmable completion
+    enableCompletion = true;
     shellAliases = {
     };
     initExtra = ''
       ${bashInit}
-      if [ -z "$TMUX" ]; then exec tmux; fi
     '';
   };
 
