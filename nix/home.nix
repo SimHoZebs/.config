@@ -46,8 +46,8 @@ in
 
   programs.tmux = {
     enable = true;
-    plugins = with pkgs; [
-      tmuxPlugins.tmux-powerline
+    plugins = with pkgs.tmuxPlugins; [
+      tmux-powerline
     ];
     extraConfig = ''
       ${tmuxConfig}

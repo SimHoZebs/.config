@@ -7,6 +7,8 @@
 !nix/**/*
 !nvim/
 !nvim/**/*
+!tmux-powerline/
+!tmux-powerline/**/*
 
 # Common ignores even within nix
 nix/**/.DS_Store
