@@ -1,6 +1,6 @@
 { config, pkgs, ... }:
 let
-  bashInit = builtins.readFile ./bash_init.sh;
+  bashInit = builtins.readFile ./.bashrc;
   tmuxConfig = builtins.readFile ./tmux.conf;
 
 in
@@ -47,7 +47,12 @@ in
 
   programs.tmux = {
     enable = true;
-    extraConfig = tmuxConfig;
+    plugins = with pkgs; [
+      tmuxPlugins.tmux-powerline
+    ];
+    extraConfig = ''
+      ${tmuxConfig}
+    '';
   };
 
   programs.git = {
