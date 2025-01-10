@@ -20,6 +20,7 @@ return {
         json = { 'biome', 'prettierd' },
         astro = { 'prettierd' },
         java = { 'clang-format' },
+        nix = {'nixfmt'},
       },
       formatters = {
         stylua = {
