@@ -31,6 +31,7 @@
           (
             { config, pkgs, ... }:
             {
+              virtualisation.docker.enable = true;
               # Hardware and boot configuration
               hardware.enableAllFirmware = true;
               boot = {
@@ -73,7 +74,10 @@
                     openssh.authorizedKeys.keys = [
                       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBRGhD1hvAfgEHsSr5INZTOah/zCXvi7aZs+3qc/bBhJ"
                     ];
-                    extraGroups = [ "wheel" ];
+                    extraGroups = [
+                      "wheel"
+                      "docker"
+                    ];
                     initialPassword = "nixos";
                   };
                   root.initialPassword = "password";
