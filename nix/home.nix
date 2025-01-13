@@ -6,8 +6,8 @@ let
 in
 {
   # You'll need to define your username and home directory if not using NixOS
-  home.username = "ho";
-  home.homeDirectory = "/home/ho";
+  home.username = "simho";
+  home.homeDirectory = "/home/simho";
 
   home.stateVersion = "25.05";
 
@@ -33,6 +33,7 @@ in
     gcc
     nixfmt-rfc-style
     tailscale
+    rsync
   ];
 
   programs.bash = {

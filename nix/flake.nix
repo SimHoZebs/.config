@@ -91,7 +91,7 @@
         ];
       };
 
-      homeConfigurations.ho = home-manager.lib.homeManagerConfiguration {
+      homeConfigurations.simho = home-manager.lib.homeManagerConfiguration {
         pkgs = pkgs;
         modules = [
           ./home.nix
