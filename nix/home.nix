@@ -2,6 +2,7 @@
 let
   bashInit = builtins.readFile ./.bashrc;
   tmuxConfig = builtins.readFile ./tmux.conf;
+  gitmuxConfig = builtins.toString ../gitmux.conf;
 
 in
 {
@@ -67,7 +68,7 @@ in
     extraConfig = ''
       ${tmuxConfig}
       set -g @catppuccin_flavor "mocha"
-      set -g status-left '#(gitmux "#{pane_current_path}")'
+      set -g status-left '#(gitmux -cfg ${gitmuxConfig} "#{pane_current_path}")'
     '';
   };
 

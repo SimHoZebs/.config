@@ -9,6 +9,7 @@
 !nvim/**/*
 !tmux-powerline/
 !tmux-powerline/**/*
+!gitmux.conf
 
 # Common ignores even within nix
 nix/**/.DS_Store
