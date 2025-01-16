@@ -82,4 +82,13 @@ in
     enableBashIntegration = true;
     options = [ "--cmd cd" ];
   };
+
+  programs.lazygit = {
+    enable = true;
+    settings = {
+      os = {
+        editPreset = "nvim";
+      };
+    };
+  };
 }
