@@ -34,6 +34,8 @@ in
     zoxide
     rsync
     tailscale
+    neovim
+    vim
 
     # Version control
     git
@@ -41,7 +43,6 @@ in
 
     # PHP development
     php
-    composer
 
     # Formatting tools
     nixfmt-rfc-style
