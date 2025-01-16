@@ -13,10 +13,18 @@ in
 
   # Install packages for the user
   home.packages = with pkgs; [
+    # Development tools
+    rustup
+    nodejs
+    python311
+    go
+    cmake
+    gcc
+
+    # Utilities
     openssh
     curl
     wslu
-    neovim
     fzf
     lazygit
     ripgrep
@@ -24,17 +32,19 @@ in
     wget
     gh
     zoxide
-    git
-    rustup
-    nodejs
-    python311
-    go
-    cmake
-    gcc
-    nixfmt-rfc-style
-    tailscale
     rsync
+    tailscale
+
+    # Version control
+    git
     gitmux
+
+    # PHP development
+    php
+    composer
+
+    # Formatting tools
+    nixfmt-rfc-style
   ];
 
   programs.bash = {

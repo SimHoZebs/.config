@@ -21,6 +21,7 @@ return {
         astro = { 'prettierd' },
         java = { 'clang-format' },
         nix = {'nixfmt'},
+        php = {'pretty-php'},
       },
       formatters = {
         stylua = {
