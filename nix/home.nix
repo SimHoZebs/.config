@@ -34,6 +34,7 @@ in
     nixfmt-rfc-style
     tailscale
     rsync
+    gitmux
   ];
 
   programs.bash = {
@@ -50,10 +51,12 @@ in
     enable = true;
     plugins = with pkgs.tmuxPlugins; [
       sensible
-      tmux-powerline
+      catppuccin
     ];
     extraConfig = ''
       ${tmuxConfig}
+      set -g @catppuccin_flavor "mocha"
+      set -g status-left '#(gitmux "#{pane_current_path}")'
     '';
   };
 
