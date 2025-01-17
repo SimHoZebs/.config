@@ -6,4 +6,9 @@ return {
   -- Optional dependencies
   dependencies = { { "echasnovski/mini.icons", opts = {} } },
   -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if prefer nvim-web-devicons
+  config = function()
+    require("oil").setup({
+      vim.keymap.set('n', '<leader>so',"<CMD>Oil<CR>", { desc = '[S]earch [O]il' }),
+    })
+  end,
 }

@@ -21,29 +21,29 @@ in
     go
     cmake
     gcc
+    php
 
     # Utilities
     openssh
     curl
     wslu
     fzf
-    lazygit
     ripgrep
     unzip
     wget
-    gh
     zoxide
     rsync
     tailscale
     neovim
     vim
+    inshellisense
+    gitmux
+    node2nix
 
     # Version control
     git
-    gitmux
-
-    # PHP development
-    php
+    gh
+    lazygit
 
     # Formatting tools
     nixfmt-rfc-style
@@ -69,6 +69,7 @@ in
       ${tmuxConfig}
       set -g @catppuccin_flavor "mocha"
       set -g status-left '#(gitmux -cfg ${gitmuxConfig} "#{pane_current_path}")'
+      is
     '';
   };
 
