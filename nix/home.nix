@@ -22,9 +22,10 @@ in
     cmake
     gcc
     php
+    pnpm
 
     # Utilities
-    openssh
+    openssh_gssapi
     curl
     wslu
     fzf
