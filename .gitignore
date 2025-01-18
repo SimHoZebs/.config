@@ -10,12 +10,4 @@
 !tmux-powerline/
 !tmux-powerline/**/*
 !gitmux.conf
-
-# Common ignores even within nix
-nix/**/.DS_Store
-nix/**/node_modules/
-nix/**/*.log
-nix/**/.env
-nix/**/.vscode/
-nix/**/__pycache__/
-nix/**/*.pyc
+!package.json
