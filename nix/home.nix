@@ -56,6 +56,7 @@ in
     };
     initExtra = ''
       ${bashInit}
+      is
     '';
   };
 
@@ -69,7 +70,6 @@ in
       ${tmuxConfig}
       set -g @catppuccin_flavor "mocha"
       set -g status-left '#(gitmux -cfg ${gitmuxConfig} "#{pane_current_path}")'
-      is
     '';
   };
 
