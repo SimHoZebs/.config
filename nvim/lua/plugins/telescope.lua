@@ -84,6 +84,7 @@ return {
           only_sort_text = true,
           word_match = '-w',
           search = '',
+          sorter = require('telescope.sorters').get_fzy_sorter(),
         }
       end
 
