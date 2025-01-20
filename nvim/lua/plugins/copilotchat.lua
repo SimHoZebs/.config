@@ -9,7 +9,6 @@ return {
     },
     build = 'make tiktoken',
     opts = {
-      debug = true, -- Enable debugging
       mappings = {
         submit_prompt = {
           normal = '<Enter>',
