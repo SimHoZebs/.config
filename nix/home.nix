@@ -38,7 +38,6 @@ in
     tailscale
     neovim
     vim
-    inshellisense
     gitmux
     node2nix
 
@@ -58,7 +57,6 @@ in
     };
     initExtra = ''
       ${bashInit}
-      is
     '';
   };
 
