@@ -23,6 +23,7 @@ in
     gcc
     php
     pnpm
+    pkgs.git-filter-repo
 
     # Utilities
     openssh_gssapi
