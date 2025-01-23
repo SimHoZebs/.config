@@ -24,6 +24,8 @@ in
     php
     pnpm
     pkgs.git-filter-repo
+    openssl.dev
+    neovim
 
     # Utilities
     openssh_gssapi
@@ -36,7 +38,6 @@ in
     zoxide
     rsync
     tailscale
-    neovim
     vim
     gitmux
     node2nix
