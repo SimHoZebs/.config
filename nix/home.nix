@@ -22,10 +22,11 @@ in
     cmake
     gcc
     php
+    phpPackages.composer
     pnpm
     pkgs.git-filter-repo
     openssl.dev
-    neovim
+    luaPackages.luarocks
 
     # Utilities
     openssh_gssapi
@@ -93,5 +94,13 @@ in
         editPreset = "nvim";
       };
     };
+  };
+
+  programs.neovim = {
+    enable = true;
+    extraLuaPackages =
+      luaPackages: with luaPackages; [
+        tiktoken_core
+      ];
   };
 }
