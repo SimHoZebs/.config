@@ -9,6 +9,7 @@ return {
     },
     build = 'make tiktoken',
     opts = {
+      model = 'claude-3.5-sonnet',
       mappings = {
         submit_prompt = {
           normal = '<Enter>',

@@ -23,6 +23,12 @@ return {
         nix = { 'nixfmt' },
         php = { 'pretty-php' },
       },
+      formatters = {
+        biome = {
+          command = 'biome',
+          args = { 'format', '--stdin-file-path', '$FILENAME', '--fix' },
+        },
+      },
     },
   },
 }
