@@ -73,6 +73,7 @@ alias ll="ls -alF"
 alias la="ls -A"
 alias l="ls -CF"
 alias lg="lazygit"
+alias switch="tmux switch-client -t"
 
 if command -v fzf-share >/dev/null; then
   source "$(fzf-share)/key-bindings.bash"
