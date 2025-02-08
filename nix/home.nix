@@ -20,13 +20,15 @@ in
     python311
     go
     cmake
+    gnumake
     gcc
     php
     phpPackages.composer
     pnpm
     pkgs.git-filter-repo
     openssl.dev
-    luaPackages.luarocks
+    lua51Packages.luarocks
+    fd
 
     # Utilities
     openssh_gssapi
