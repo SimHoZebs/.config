@@ -17,7 +17,9 @@ in
     # Development tools
     rustup
     nodejs
-    python311
+    python310
+    pyenv
+    pipenv
     go
     cmake
     gnumake
@@ -29,6 +31,11 @@ in
     openssl.dev
     lua51Packages.luarocks
     fd
+    zlib
+    libffi
+    readline
+    bzip2
+    ncurses
 
     # Utilities
     openssh_gssapi
@@ -48,6 +55,7 @@ in
     # Version control
     git
     gh
+    glab
     lazygit
 
     # Formatting tools
