@@ -1,0 +1,111 @@
+---
+- name: Install essential packages
+  apt:
+    name:
+      - curl
+      - git
+      - zsh
+      - htop
+      - gcc
+      - cmake
+      - fzf
+      - unzip
+      - rsync
+      - tmux
+      - nodejs
+      - ripgrep
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Check if Homebrew is installed
+  ansible.builtin.command:
+    cmd: brew --version
+  register: brew_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Install Homebrew
+  ansible.builtin.shell:
+    cmd: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  when: brew_check.rc != 0
+
+- name: Add Homebrew to PATH in .bashrc
+  ansible.builtin.blockinfile:
+    path: ~/.bashrc
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: homebrew"
+    block: |
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    create: yes
+    mode: '0600'
+
+- name: Check if rustup is installed
+  ansible.builtin.command:
+    cmd: rustup --version
+  register: rustup_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Install rustup if not installed
+  ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  args:
+    executable: /bin/bash
+  when: rustup_check.rc != 0
+
+- name: Download Neovim
+  get_url:
+    url: https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+    dest: /tmp/nvim-linux-x86_64.tar.gz
+
+- name: Remove old Neovim installation
+  file:
+    path: /opt/nvim
+    state: absent
+
+- name: Extract Neovim to /opt
+  ansible.builtin.unarchive:
+    src: /tmp/nvim-linux-x86_64.tar.gz
+    dest: /opt
+    remote_src: yes
+
+- name: Add Neovim to PATH
+  lineinfile:
+    path: ~/.bashrc
+    line: 'export PATH="$PATH:/opt/nvim-linux-x86_64/bin"'
+    create: yes
+
+- name: Homebrew tap
+  ansible.builtin.homebrew_tap:
+    name:
+      - arl/arl
+  when: brew_check.rc == 0 or brew_check.failed is defined
+
+- name: Install packages with Homebrew
+  ansible.builtin.homebrew:
+    name:
+     - fzf
+     - lazygit
+     - neovim
+     - zoxide
+     - arl/arl/gitmux
+    state: present
+  when: brew_check.rc == 0 or brew_check.failed is defined
+
+- name: add fzf to .bashrc
+  ansible.builtin.blockinfile:
+    path: ~/.bashrc
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: fzf"
+    block: |
+      eval "$(fzf --bash)"
+    create: yes
+    mode: '0600'
+
+- name: Clone TPM (Tmux Plugin Manager)
+  ansible.builtin.git:
+    repo: 'https://github.com/tmux-plugins/tpm'
+    dest: '~/.tmux/plugins/tpm'
+    update: yes
+
+- name: Install plugins with TPM
+  command: "~/.tmux/plugins/tpm/bin/install_plugins"
+

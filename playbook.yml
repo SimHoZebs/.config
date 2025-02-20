@@ -1,0 +1,79 @@
+---
+- name: Configure Development Environment
+  hosts: localhost
+  become: no
+  tasks:
+    - include_tasks: tasks/install-system-packages.yml
+
+    - name: Ensure SSH directory exists
+      ansible.builtin.file:
+        path: ~/.ssh
+        state: directory
+        mode: '0700'
+
+    - name: Check if SSH key exists
+      ansible.builtin.stat:
+        path: ~/.ssh/id_ed25519
+      register: ssh_key_stat
+
+    - name: Generate SSH key for GitHub if not present
+      ansible.builtin.openssh_keypair:
+        path: ~/.ssh/id_ed25519
+        force: no
+        comment: "github@simhozebs"
+        type: ed25519
+      when: not ssh_key_stat.stat.exists
+
+    - name: Print public key for manual GitHub addition
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+
+    - name: Configure SSH for GitHub
+      ansible.builtin.blockinfile:
+        path: ~/.ssh/config
+        marker: "# {mark} ANSIBLE MANAGED BLOCK: GitHub SSH"
+        block: |
+          Host github.com
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+        create: yes
+        mode: '0600'
+
+    - name: Set git user email
+      ansible.builtin.git_config:
+        name: user.email
+        scope: global
+        value: "simhozebs@gmail.com"
+
+    - name: Set git user name
+      ansible.builtin.git_config:
+        name: user.name
+        scope: global
+        value: "SimHoZebs"
+
+    - name: Check if .config/.git exists
+      ansible.builtin.stat:
+        path: ~/.config/.git
+      register: git_stat
+
+    - name: Clone Neovim config repository with SSH (skipped if .config/.git exists)
+      ansible.builtin.git:
+        repo: "git@github.com:SimHoZebs/.config.git"
+        dest: ~/.config
+        version: master
+        update: yes
+        force: no
+      when: not git_stat.stat.exists
+
+    - name: Source .bashrc
+      ansible.builtin.shell: source ~/.bashrc
+      args:
+        executable: /bin/bash
+      when: ansible_env.SHELL == "/bin/bash"
+
+    - name: Reload tmux configuration to apply changes
+      command: "tmux source-file ~/.config/tmux.conf"
+      when: ansible_env.SHELL == "/bin/bash"
+
