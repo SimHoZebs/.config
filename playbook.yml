@@ -67,12 +67,6 @@
         force: no
       when: not git_stat.stat.exists
 
-    - name: Source .bashrc
-      ansible.builtin.shell: source ~/.bashrc
-      args:
-        executable: /bin/bash
-      when: ansible_env.SHELL == "/bin/bash"
-
     - name: Ensure Catppuccin tmux plugin directory exists
       ansible.builtin.file:
         path: ~/.config/tmux/plugins/catppuccin
@@ -86,6 +80,8 @@
         version: v2.1.2
         force: no
 
-    - name: Reload tmux configuration to apply changes
-      command: "tmux source-file ~/.config/tmux.conf"
+    - name: Source .bashrc
+      ansible.builtin.shell: source ~/.bashrc
+      args:
+        executable: /bin/bash
       when: ansible_env.SHELL == "/bin/bash"
