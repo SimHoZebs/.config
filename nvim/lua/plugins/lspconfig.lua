@@ -188,7 +188,6 @@ return {
         'biome',
         'gopls',
         'prettierd',
-        'nil',
         'eslint_d',
         'clangd',
         'clang-format',
