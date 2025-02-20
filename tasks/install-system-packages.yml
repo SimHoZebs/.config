@@ -15,6 +15,7 @@
       - nodejs
       - ripgrep
       - luarocks
+      - python3-pip
     state: present
     update_cache: yes
   become: yes
@@ -39,12 +40,6 @@
       eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     create: yes
     mode: '0600'
-
-- name: Remove existing Go installation
-  become: yes
-  file:
-    path: /usr/local/go
-    state: absent
 
 - name: Download Go archive
   get_url:
@@ -153,7 +148,3 @@
     repo: 'https://github.com/tmux-plugins/tpm'
     dest: '~/.tmux/plugins/tpm'
     update: yes
-
-- name: Install plugins with TPM
-  command: "~/.tmux/plugins/tpm/bin/install_plugins"
-
