@@ -4,7 +4,7 @@ return {
   config = function()
     require('onedarkpro').setup {
       colors = {
-        onedark = { bg = '#1a1a1a' },
+        onedark = { bg = '#252623' },
       },
     }
     -- Load the colorscheme here
