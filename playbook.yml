@@ -73,7 +73,19 @@
         executable: /bin/bash
       when: ansible_env.SHELL == "/bin/bash"
 
+    - name: Ensure Catppuccin tmux plugin directory exists
+      ansible.builtin.file:
+        path: ~/.config/tmux/plugins/catppuccin
+        state: directory
+        mode: '0755'
+
+    - name: Clone Catppuccin tmux plugin
+      ansible.builtin.git:
+        repo: https://github.com/catppuccin/tmux.git
+        dest: ~/.config/tmux/plugins/catppuccin/tmux
+        version: v2.1.2
+        force: no
+
     - name: Reload tmux configuration to apply changes
       command: "tmux source-file ~/.config/tmux.conf"
       when: ansible_env.SHELL == "/bin/bash"
-

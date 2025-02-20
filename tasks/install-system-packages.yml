@@ -14,6 +14,7 @@
       - tmux
       - nodejs
       - ripgrep
+      - luarocks
     state: present
     update_cache: yes
   become: yes
@@ -46,11 +47,27 @@
   ignore_errors: yes
   changed_when: false
 
-- name: Install rustup if not installed
-  ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+- name: Install rustup
+  ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sudo sh -s -- -y
   args:
     executable: /bin/bash
+  become: yes
   when: rustup_check.rc != 0
+
+- name: Ensure Rust environment is sourced in shell config
+  lineinfile:
+    path: "~/.bashrc"  # Change this for other shells
+    line: '. "$HOME/.cargo/env"'
+    create: yes
+    state: present
+
+- name: Install tiktoken_core via luarocks
+  ansible.builtin.shell: |
+    . "$HOME/.cargo/env"
+    luarocks install tiktoken_core
+  args:
+    executable: /bin/bash
+  become: yes
 
 - name: Download Neovim
   get_url:
@@ -91,12 +108,13 @@
     state: present
   when: brew_check.rc == 0 or brew_check.failed is defined
 
-- name: add fzf to .bashrc
+- name: Add fzf and zoxide to .bashrc
   ansible.builtin.blockinfile:
     path: ~/.bashrc
     marker: "# {mark} ANSIBLE MANAGED BLOCK: fzf"
     block: |
       eval "$(fzf --bash)"
+      eval "$(zoxide init bash --cmd cd)"
     create: yes
     mode: '0600'
 
