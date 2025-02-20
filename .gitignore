@@ -1,13 +1,4 @@
-# Ignore everything
-*
-!.gitignore
-
-# But not the nix directory
-!nix/
-!nix/**/*
-!nvim/
-!nvim/**/*
-!tmux-powerline/
-!tmux-powerline/**/*
-!gitmux.conf
-!package.json
+github-copilot/
+go/
+lazygit/
+tmux/
