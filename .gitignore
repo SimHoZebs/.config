@@ -1,4 +1,5 @@
 github-copilot/
 go/
 lazygit/
-tmux/
+tmux/plugins
+.ignore

@@ -11,7 +11,6 @@
       - fzf
       - unzip
       - rsync
-      - tmux
       - ripgrep
       - luarocks
       - python3-pip
@@ -128,6 +127,7 @@
      - lazygit
      - neovim
      - zoxide
+     - tmux
      - arl/arl/gitmux
      - nodejs
      - fd
