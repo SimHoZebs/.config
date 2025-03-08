@@ -22,6 +22,7 @@ return {
         java = { 'clang-format' },
         nix = { 'nixfmt' },
         php = { 'pretty-php' },
+        yaml = { 'prettierd' },
       },
       formatters = {
         biome = {
