@@ -9,7 +9,7 @@
       ansible.builtin.file:
         path: ~/.ssh
         state: directory
-        mode: '0700'
+        mode: "0700"
 
     - name: Check if SSH key exists
       ansible.builtin.stat:
@@ -39,7 +39,7 @@
             IdentityFile ~/.ssh/id_ed25519
             StrictHostKeyChecking no
         create: yes
-        mode: '0600'
+        mode: "0600"
 
     - name: Set git user email
       ansible.builtin.git_config:
@@ -71,7 +71,7 @@
       ansible.builtin.file:
         path: ~/.config/tmux/plugins/catppuccin
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Clone Catppuccin tmux plugin
       ansible.builtin.git:
@@ -79,6 +79,12 @@
         dest: ~/.config/tmux/plugins/catppuccin/tmux
         version: v2.1.2
         force: no
+
+    - name: Ensure .bashrc sources ~/.config/.bashrc
+      ansible.builtin.lineinfile:
+        path: ~/.bashrc
+        line: "[ -f ~/.config/.bashrc ] && source ~/.config/.bashrc"
+        state: present
 
     - name: Source .bashrc
       ansible.builtin.shell: source ~/.bashrc

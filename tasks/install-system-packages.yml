@@ -32,12 +32,12 @@
 
 - name: Add Homebrew to PATH in .bashrc
   ansible.builtin.blockinfile:
-    path: ~/.bashrc
+    path: ~/.config/.bashrc
     marker: "# {mark} ANSIBLE MANAGED BLOCK: homebrew"
     block: |
       eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     create: yes
-    mode: '0600'
+    mode: "0600"
 
 - name: Download Go archive
   get_url:
@@ -55,7 +55,7 @@
   become: yes
   lineinfile:
     path: /etc/profile
-    line: 'export PATH=$PATH:/usr/local/go/bin'
+    line: "export PATH=$PATH:/usr/local/go/bin"
     create: yes
 
 - name: Apply profile changes immediately
@@ -79,7 +79,7 @@
 
 - name: Ensure Rust environment is sourced in shell config
   lineinfile:
-    path: "~/.bashrc"  # Change this for other shells
+    path: "~/.config/.bashrc" # Change this for other shells
     line: '. "$HOME/.cargo/env"'
     create: yes
     state: present
@@ -92,28 +92,6 @@
     executable: /bin/bash
   become: yes
 
-- name: Download Neovim
-  get_url:
-    url: https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
-    dest: /tmp/nvim-linux-x86_64.tar.gz
-
-- name: Remove old Neovim installation
-  file:
-    path: /opt/nvim
-    state: absent
-
-- name: Extract Neovim to /opt
-  ansible.builtin.unarchive:
-    src: /tmp/nvim-linux-x86_64.tar.gz
-    dest: /opt
-    remote_src: yes
-
-- name: Add Neovim to PATH
-  lineinfile:
-    path: ~/.bashrc
-    line: 'export PATH="$PATH:/opt/nvim-linux-x86_64/bin"'
-    create: yes
-
 - name: Homebrew tap
   ansible.builtin.homebrew_tap:
     name:
@@ -123,29 +101,29 @@
 - name: Install packages with Homebrew
   ansible.builtin.homebrew:
     name:
-     - fzf
-     - lazygit
-     - neovim
-     - zoxide
-     - tmux
-     - arl/arl/gitmux
-     - nodejs
-     - fd
+      - fzf
+      - lazygit
+      - neovim
+      - zoxide
+      - tmux
+      - arl/arl/gitmux
+      - nodejs
+      - fd
     state: present
   when: brew_check.rc == 0 or brew_check.failed is defined
 
 - name: Add fzf and zoxide to .bashrc
   ansible.builtin.blockinfile:
-    path: ~/.bashrc
+    path: ~/.config/.bashrc
     marker: "# {mark} ANSIBLE MANAGED BLOCK: fzf"
     block: |
       eval "$(fzf --bash)"
       eval "$(zoxide init bash --cmd cd)"
     create: yes
-    mode: '0600'
+    mode: "0600"
 
 - name: Clone TPM (Tmux Plugin Manager)
   ansible.builtin.git:
-    repo: 'https://github.com/tmux-plugins/tpm'
-    dest: '~/.tmux/plugins/tpm'
+    repo: "https://github.com/tmux-plugins/tpm"
+    dest: "~/.tmux/plugins/tpm"
     update: yes
