@@ -80,6 +80,14 @@
         version: v2.1.2
         force: no
 
+    - name: Ensure .bashrc exists
+      ansible.builtin.file:
+        path: ~/.bashrc
+        state: touch
+        mode: "0644"
+        modification_time: preserve
+        access_time: preserve
+
     - name: Ensure .bashrc sources ~/.config/.bashrc
       ansible.builtin.lineinfile:
         path: ~/.bashrc
