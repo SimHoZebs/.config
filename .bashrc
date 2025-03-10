@@ -130,8 +130,9 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 # END ANSIBLE MANAGED BLOCK: homebrew
 #
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
-  exec tmux
-  # tmux source-file ~/.config/tmux/tmux.conf
+  # Check if session exists, if not create it
+  tmux has-session -t default 2>/dev/null || tmux new-session -s default -d
+  exec tmux attach-session -t default
 fi
 
 # BEGIN ANSIBLE MANAGED BLOCK: fzf
