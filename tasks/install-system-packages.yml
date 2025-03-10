@@ -124,5 +124,5 @@
 - name: Clone TPM (Tmux Plugin Manager)
   ansible.builtin.git:
     repo: "https://github.com/tmux-plugins/tpm"
-    dest: "~/.tmux/plugins/tpm"
+    dest: "~/.config/tmux/plugins/tpm"
     update: yes
