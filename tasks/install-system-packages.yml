@@ -71,10 +71,9 @@
   changed_when: false
 
 - name: Install rustup
-  ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sudo sh -s -- -y
+  ansible.builtin.shell: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   args:
     executable: /bin/bash
-  become: yes
   when: rustup_check.rc != 0
 
 - name: Ensure Rust environment is sourced in shell config
