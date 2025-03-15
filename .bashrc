@@ -125,9 +125,7 @@ if command -v fzf-share >/dev/null; then
   source "$(fzf-share)/completion.bash"
 fi
 
-# BEGIN ANSIBLE MANAGED BLOCK: homebrew
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-# END ANSIBLE MANAGED BLOCK: homebrew
 #
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
   # Check if session exists, if not create it
@@ -135,9 +133,7 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] &&
   exec tmux attach-session -t default
 fi
 
-# BEGIN ANSIBLE MANAGED BLOCK: fzf
 eval "$(fzf --bash)"
 eval "$(zoxide init bash --cmd cd)"
-# END ANSIBLE MANAGED BLOCK: fzf
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash

@@ -17,6 +17,13 @@
         mode: "0644"
         create: yes
 
+    - name: Source updated configs
+      ansible.builtin.shell: |
+        source ~/.profile
+        source ~/.bashrc
+      args:
+        executable: /bin/bash
+
     - include_tasks: tasks/install-system-packages.yml
 
     - name: Ensure SSH directory exists

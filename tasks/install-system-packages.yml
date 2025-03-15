@@ -30,14 +30,10 @@
     cmd: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   when: brew_check.rc != 0
 
-- name: Add Homebrew to PATH in .bashrc
-  ansible.builtin.blockinfile:
-    path: ~/.config/.bashrc
-    marker: "# {mark} ANSIBLE MANAGED BLOCK: homebrew"
-    block: |
-      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    create: yes
-    mode: "0600"
+- name: source .bashrc (for Homebrew)
+  ansible.builtin.shell: source ~/.bashrc
+  args:
+    executable: /bin/bash
 
 - name: Download Go archive
   get_url:
@@ -58,7 +54,7 @@
     line: "export PATH=$PATH:/usr/local/go/bin"
     create: yes
 
-- name: Apply profile changes immediately
+- name: Apply profile changes (for Go)
   shell: source /etc/profile
   args:
     executable: /bin/bash
@@ -75,13 +71,6 @@
   args:
     executable: /bin/bash
   when: rustup_check.rc != 0
-
-- name: Ensure Rust environment is sourced in shell config
-  lineinfile:
-    path: "~/.config/.bashrc" # Change this for other shells
-    line: '. "$HOME/.cargo/env"'
-    create: yes
-    state: present
 
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
@@ -110,16 +99,6 @@
       - fd
     state: present
   when: brew_check.rc == 0 or brew_check.failed is defined
-
-- name: Add fzf and zoxide to .bashrc
-  ansible.builtin.blockinfile:
-    path: ~/.config/.bashrc
-    marker: "# {mark} ANSIBLE MANAGED BLOCK: fzf"
-    block: |
-      eval "$(fzf --bash)"
-      eval "$(zoxide init bash --cmd cd)"
-    create: yes
-    mode: "0600"
 
 - name: Clone TPM (Tmux Plugin Manager)
   ansible.builtin.git:
