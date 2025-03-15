@@ -75,7 +75,7 @@
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
     . "~/.cargo/env"
-    luarocks install tiktoken_core
+    luarocks install tiktoken_core --local
   args:
     executable: /bin/bash
 
