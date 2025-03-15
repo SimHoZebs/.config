@@ -74,11 +74,10 @@
 
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
-    . "$HOME/.cargo/env"
+    . "~/.cargo/env"
     luarocks install tiktoken_core
   args:
     executable: /bin/bash
-  become: yes
 
 - name: Homebrew tap
   ansible.builtin.homebrew_tap:
