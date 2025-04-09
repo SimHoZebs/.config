@@ -1,3 +1,14 @@
+local js = function()
+  local file = vim.fs.find({ 'biome.json', 'deno.json' }, { type = 'file', upward = true })[1]
+  print('file', file)
+  if file then
+    local yeet = { file:match 'biome.json' and 'biome' or 'deno' }
+    return yeet
+  else
+    return { 'prettierd' }
+  end
+end
+
 return {
   { -- Autoformat
     'stevearc/conform.nvim',
@@ -10,14 +21,14 @@ return {
       },
       formatters_by_ft = {
         lua = { 'stylua' },
-        html = { 'prettierd', 'eslint_d' },
         htmldjango = { 'djlint' },
-        javascript = { 'biome' },
-        typescript = { 'biome' },
+        html = js,
+        javascript = js,
+        typescript = js,
+        typescriptreact = js,
+        javascriptreact = js,
+        json = js,
         python = { 'black' },
-        typescriptreact = { 'biome' },
-        javascriptreact = { 'biome' },
-        json = { 'prettierd' },
         astro = { 'prettierd' },
         java = { 'clang-format' },
         nix = { 'nixfmt' },
@@ -25,9 +36,10 @@ return {
         yaml = { 'prettierd' },
       },
       formatters = {
-        biome = {
-          command = 'biome',
-          args = { 'format', '--stdin-file-path', '$FILENAME', '--fix' },
+        deno = {
+          command = 'deno',
+          args = { 'fmt', '$FILENAME' },
+          stdin = true,
         },
       },
     },
