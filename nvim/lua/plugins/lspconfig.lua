@@ -186,6 +186,7 @@ return {
         'basedpyright',
         'black',
         'biome',
+        'denols',
         'gopls',
         'prettierd',
         'eslint_d',
@@ -196,19 +197,43 @@ return {
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
+        ensure_installed = ensure_installed,
+        automatic_installation = true,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
+
+            -- Special handling for Deno - only enable if deno.json exists
+            if server_name == 'denols' then
+              local root_dir = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd())
+              if not root_dir then
+                return -- Skip setup if no deno config found
+              end
+            end
+
+            -- Enable Biome only if Deno is not active
+            if server_name == 'biome' then
+              local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
+              if has_deno then
+                return -- Skip Biome setup if deno config found
+              end
+            end
+
             if server_name == 'html' then
               server.filetypes = { 'html', 'htmldjango' }
             end
+
             if server_name == 'jqls' then
               server.filetypes = { 'htmldjango' }
             end
+
             require('lspconfig')[server_name].setup {
               cmd = server.cmd,
               -- root_dir equals to the root of the project
-              root_dir = require('lspconfig').util.root_pattern '.git',
+              root_dir = function(fname)
+                local util = require 'lspconfig.util'
+                return util.root_pattern '.git'(fname) or vim.fs.dirname(fname)
+              end,
               settings = server.settings,
               filetypes = server.filetypes,
               -- This handles overriding only values explicitly passed
