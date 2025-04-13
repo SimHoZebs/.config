@@ -197,7 +197,7 @@ return {
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
-        ensure_installed = ensure_installed,
+        ensure_installed = {},
         automatic_installation = true,
         handlers = {
           function(server_name)
@@ -216,6 +216,13 @@ return {
               local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
               if has_deno then
                 return -- Skip Biome setup if deno config found
+              end
+            end
+
+            if server_name == 'ts_ls' then
+              local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
+              if has_deno then
+                return -- Skip ts_ls setup if deno config found
               end
             end
 

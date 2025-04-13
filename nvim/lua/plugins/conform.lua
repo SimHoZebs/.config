@@ -1,6 +1,5 @@
 local js = function()
   local file = vim.fs.find({ 'biome.json', 'deno.json' }, { type = 'file', upward = true })[1]
-  print('file', file)
   if file then
     local yeet = { file:match 'biome.json' and 'biome' or 'deno' }
     return yeet
@@ -38,7 +37,7 @@ return {
       formatters = {
         deno = {
           command = 'deno',
-          args = { 'fmt', '$FILENAME' },
+          args = { 'fmt', '-' },
           stdin = true,
         },
       },
