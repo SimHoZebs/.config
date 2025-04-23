@@ -118,7 +118,9 @@ fi
 
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$PATH:/opt/nvim-linux-x86_64/bin"
-. "$HOME/.cargo/env"
+if [ -d "$HOME/.cargo" ] && [ -f "$HOME/.cargo/env" ]; then
+    . "$HOME/.cargo/env"
+fi
 
 if command -v fzf-share >/dev/null; then
   source "$(fzf-share)/key-bindings.bash"
