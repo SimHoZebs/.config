@@ -4,8 +4,11 @@
     name:
       - curl
       - git
+      - gh
       - zsh
-      - htop
+      - fd
+      - btop
+      - wget
       - gcc
       - cmake
       - fzf
@@ -71,6 +74,11 @@
   args:
     executable: /bin/bash
   when: rustup_check.rc != 0
+
+- name: source .bashrc (for cargo)
+  ansible.builtin.shell: source ~/.bashrc
+  args:
+    executable: /bin/bash
 
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
