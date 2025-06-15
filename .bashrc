@@ -93,7 +93,8 @@ alias ll='ls -l'
 alias la='ls -A'
 alias l='ls -CF'
 alias lg='lazygit'
-alias switch='tmux switch-session -t'
+alias switch='tmux switch -t'
+alias session='tmux new-session -d -t'
 alias lst='tmux ls'
 
 # Alias definitions.
