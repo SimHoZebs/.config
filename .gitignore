@@ -6,3 +6,5 @@ tmux/plugins
 .ignore
 astro/
 flutter/
+gh/
+glab-cli/

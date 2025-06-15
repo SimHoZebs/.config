@@ -93,9 +93,15 @@ alias ll='ls -l'
 alias la='ls -A'
 alias l='ls -CF'
 alias lg='lazygit'
+
+# tmux aliases
 alias switch='tmux switch -t'
 alias session='tmux new-session -d -t'
 alias lst='tmux ls'
+alias tka='tmux kill-session -a'
+alias tk='tmux kill-session -t'
+# switch to session 0 if it exists, otherwise create a new session named '0'
+alias s0='tmux switch -t 0 || tmux new-session -s 0'
 
 # Alias definitions.
 # You may want to put all your additions into a separate file like
@@ -135,8 +141,7 @@ fi
 
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
   # Check if session exists, if not create it
-  tmux has-session -t default 2>/dev/null || tmux new-session -s default -d
-  exec tmux attach-session -t default
+  exec tmux
 fi
 
 eval "$(fzf --bash)"
