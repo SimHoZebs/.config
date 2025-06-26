@@ -139,12 +139,12 @@ if [ -d /home/linuxbrew/.linuxbrew ]; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
-if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+if [[ $VSCODE_TERMINAL != "1" ]] && command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
   # Check if session exists, if not create it
-  exec tmux
+  exec tmux new-session -A -s main
 fi
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 eval "$(fzf --bash)"
 eval "$(zoxide init bash --cmd cd)"
-
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
