@@ -4,7 +4,6 @@
     name:
       - curl
       - git
-      - gh
       - zsh
       - fd
       - btop
@@ -104,6 +103,7 @@
       - arl/arl/gitmux
       - nodejs
       - fd
+      - gh
     state: present
   when: brew_check.rc == 0 or brew_check.failed is defined
 
