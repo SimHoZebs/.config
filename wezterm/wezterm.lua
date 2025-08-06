@@ -4,22 +4,21 @@ local config = wezterm.config_builder()
 
 local mux = wezterm.mux
 
-wezterm.on('gui-startup', function(cmd)
-  local tab, pane, window = mux.spawn_window(cmd or {})
-  window:gui_window():maximize()
+wezterm.on("gui-startup", function(cmd)
+	local tab, pane, window = mux.spawn_window(cmd or {})
+	window:gui_window():maximize()
 end)
 
 if wezterm.target_triple == "x86_64-pc-windows-msvc" then
-  config.default_prog = { "pwsh.exe" }
+	config.default_prog = { "pwsh.exe" }
+end
 
 config.leader = { key = "q", mods = "CTRL" }
 config.keys = {
 
 	{ key = "c", mods = "LEADER", action = wezterm.action({ SpawnTab = "CurrentPaneDomain" }) },
-	{ key = "y", mods = "LEADER", action = wezterm.action.CopyTo 'ClipboardAndPrimarySelection'},
-	{ key = "v", mods = "CTRL", action = wezterm.action.PasteFrom 'Clipboard'},
-
-
+	{ key = "y", mods = "LEADER", action = wezterm.action.CopyTo("ClipboardAndPrimarySelection") },
+	{ key = "v", mods = "CTRL", action = wezterm.action.PasteFrom("Clipboard") },
 
 	{ key = "V", mods = "LEADER", action = wezterm.action({ SplitVertical = { domain = "CurrentPaneDomain" } }) },
 	{ key = "v", mods = "LEADER", action = wezterm.action({ SplitHorizontal = { domain = "CurrentPaneDomain" } }) },
@@ -44,12 +43,10 @@ config.keys = {
 }
 
 config.font_size = 12
-config.font = wezterm.font_with_fallback {
-	{
-		family = "Iosevka Custom", stretch = "Expanded"
-	},
-	{ family = "IosevkaTerm Nerd Font" }
-}
+config.font = wezterm.font_with_fallback({
+	{ family = "Iosevka Custom", stretch = "Expanded" },
+	{ family = "IosevkaTerm Nerd Font" },
+})
 config.window_decorations = "RESIZE"
 config.tab_and_split_indices_are_zero_based = true
 config.color_scheme = "Bamboo"
