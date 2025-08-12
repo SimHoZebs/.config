@@ -203,24 +203,24 @@ return {
           function(server_name)
             local server = servers[server_name] or {}
 
-            -- Special handling for Deno - only enable if deno.json exists
+            local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
+            local has_biome = require('lspconfig').util.root_pattern 'biome.json'(vim.fn.getcwd()) ~= nil
+
+            -- only enable Deno if deno.json exists
             if server_name == 'denols' then
-              local root_dir = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd())
-              if not root_dir then
-                return -- Skip setup if no deno config found
+              if not has_deno then
+                return
               end
             end
 
             -- Enable Biome only if Deno is not active
             if server_name == 'biome' then
-              local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
-              if has_deno then
+              if not has_biome then
                 return -- Skip Biome setup if deno config found
               end
             end
 
             if server_name == 'ts_ls' then
-              local has_deno = require('lspconfig').util.root_pattern('deno.json', 'deno.jsonc')(vim.fn.getcwd()) ~= nil
               if has_deno then
                 return -- Skip ts_ls setup if deno config found
               end

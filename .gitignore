@@ -8,3 +8,7 @@ astro/
 flutter/
 gh/
 glab-cli/
+gemini-cli.json
+
+# Windows
+scoop/
