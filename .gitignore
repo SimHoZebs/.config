@@ -9,6 +9,15 @@ flutter/
 gh/
 glab-cli/
 gemini-cli.json
+xfce4/
+obs-studio/
+btop/
+htop/
+pulse/
+nvtop/
+Thunar/
+dconf/
 
 # Windows
 scoop/
+
