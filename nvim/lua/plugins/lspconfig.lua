@@ -192,7 +192,6 @@ return {
         'eslint_d',
         'clangd',
         'clang-format',
-        'prismals',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 

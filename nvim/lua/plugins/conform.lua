@@ -30,7 +30,6 @@ return {
         python = { 'black' },
         astro = { 'prettierd' },
         java = { 'clang-format' },
-        nix = { 'nixfmt' },
         php = { 'pretty-php' },
         yaml = { 'prettierd' },
       },
