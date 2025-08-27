@@ -32,6 +32,7 @@ return {
         java = { 'clang-format' },
         php = { 'pretty-php' },
         yaml = { 'prettierd' },
+        nginx = { 'nginxfmt' },
       },
       formatters = {
         deno = {
