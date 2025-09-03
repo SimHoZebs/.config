@@ -36,10 +36,18 @@
   args:
     executable: /bin/bash
 
+- name: Check if Go is installed
+  ansible.builtin.command:
+    cmd: go version
+  register: go_check
+  ignore_errors: yes
+  changed_when: false
+
 - name: Download Go archive
   get_url:
     url: https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
     dest: /tmp/go1.24.0.linux-amd64.tar.gz
+  when: go_check.rc != 0
 
 - name: Extract Go archive
   become: yes
@@ -47,6 +55,7 @@
     src: /tmp/go1.24.0.linux-amd64.tar.gz
     dest: /usr/local
     remote_src: yes
+  when: go_check.rc != 0
 
 - name: Ensure Go binary path is in system-wide profile
   become: yes
