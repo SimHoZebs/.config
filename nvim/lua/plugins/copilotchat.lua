@@ -9,7 +9,7 @@ return {
     },
     build = 'make tiktoken',
     opts = {
-      model = 'gpt-4.1',
+      model = 'grok-code-fast-1',
       mappings = {
         submit_prompt = {
           normal = '<Enter>',
