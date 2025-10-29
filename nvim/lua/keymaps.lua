@@ -60,3 +60,7 @@ end, { desc = 'Close buffer' })
 vim.keymap.set('n', '<leader>bn', '<cmd>bn<CR>', { desc = 'Next buffer' })
 vim.keymap.set('n', '<leader>bp', '<cmd>bp<CR>', { desc = 'Previous buffer' })
 vim.keymap.set('n', '<leader>bs', '<cmd>ls<CR>', { desc = 'List buffers' })
+vim.keymap.set('n', '<leader>ba', '<cmd>%bd<CR>', { desc = 'Close all buffers' })
+for i = 1, 9 do
+  vim.keymap.set('n', '<leader>b' .. i, '<cmd>b' .. i .. '<CR>', { desc = 'Go to buffer ' .. i })
+end

@@ -1,8 +1,7 @@
 local js = function()
-  local file = vim.fs.find({ 'biome.json', 'deno.json' }, { type = 'file', upward = true })[1]
+  local file = vim.fs.find({ 'biome.json' }, { type = 'file', upward = true })[1]
   if file then
-    local yeet = { file:match 'biome.json' and 'biome' or 'deno' }
-    return yeet
+    return { 'biome' }
   else
     return { 'prettierd' }
   end
@@ -33,13 +32,6 @@ return {
         php = { 'pretty-php' },
         yaml = { 'prettierd' },
         nginx = { 'nginxfmt' },
-      },
-      formatters = {
-        deno = {
-          command = 'deno',
-          args = { 'fmt', '-' },
-          stdin = true,
-        },
       },
     },
   },

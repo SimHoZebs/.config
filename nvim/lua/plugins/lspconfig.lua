@@ -186,7 +186,6 @@ return {
         'basedpyright',
         'black',
         'biome',
-        'denols',
         'gopls',
         'prettierd',
         'eslint_d',
@@ -206,11 +205,6 @@ return {
             local has_biome = require('lspconfig').util.root_pattern 'biome.json'(vim.fn.getcwd()) ~= nil
 
             -- only enable Deno if deno.json exists
-            if server_name == 'denols' then
-              if not has_deno then
-                return
-              end
-            end
 
             -- Enable Biome only if Deno is not active
             if server_name == 'biome' then
