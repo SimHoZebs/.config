@@ -17,6 +17,7 @@ pulse/
 nvtop/
 Thunar/
 dconf/
+gcloud/
 
 # Windows
 scoop/

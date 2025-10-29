@@ -7,16 +7,23 @@ local js = function()
   end
 end
 
+vim.g.autoformat_enabled = true
+
 return {
-  { -- Autoformat
+  {
     'stevearc/conform.nvim',
-    event = { 'BufWritePre' },
+    event = 'VeryLazy',
     opts = {
       notify_on_error = true,
-      format_on_save = {
-        timeout_ms = 1000,
-        lsp_fallback = true,
-      },
+      format_on_save = function(bufnr)
+        if not vim.g.autoformat_enabled then
+          return
+        end
+        return {
+          timeout_ms = 1000,
+          lsp_fallback = true,
+        }
+      end,
       formatters_by_ft = {
         lua = { 'stylua' },
         htmldjango = { 'djlint' },
@@ -34,6 +41,26 @@ return {
         nginx = { 'nginxfmt' },
       },
     },
+    config = function(_, opts)
+      require('conform').setup(opts)
+
+      vim.keymap.set('n', '<leader>ft', function()
+        vim.g.autoformat_enabled = not vim.g.autoformat_enabled
+        if vim.g.autoformat_enabled then
+          vim.notify('Auto-format enabled', vim.log.levels.INFO)
+        else
+          vim.notify('Auto-format disabled', vim.log.levels.INFO)
+        end
+      end, { desc = 'Toggle auto-format' })
+
+      vim.keymap.set('n', '<leader>ff', function()
+        require('conform').format { async = true, lsp_fallback = true }
+      end, { desc = 'Format buffer' })
+
+      vim.keymap.set('v', '<leader>ff', function()
+        require('conform').format { async = true, lsp_fallback = true }
+      end, { desc = 'Format selection' })
+    end,
   },
 }
 -- vim: ts=2 sts=2 sw=2 et
