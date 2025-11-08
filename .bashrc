@@ -148,3 +148,10 @@ fi
 
 eval "$(fzf --bash)"
 eval "$(zoxide init bash --cmd cd)"
+
+# Android platform-tools
+if [ -d "/opt/android/platform-tools" ]; then
+    export PATH="$PATH:/opt/android/platform-tools"
+elif [ -d "$HOME/platform-tools" ]; then
+    export PATH="$PATH:$HOME/platform-tools"
+fi
