@@ -3,5 +3,15 @@
   "permission": {
     "edit": "ask",
     "bash": "ask"
+  },
+  "mcp": {
+    "notion_mcp": {
+      "type": "local",
+      "command": ["npx", "-y", "@notionhq/notion-mcp-server"],
+      "environment": {
+        "NOTION_TOKEN": "{file:./notion-key}"
+      },
+      "enabled": true
+    }
   }
 }
