@@ -93,6 +93,7 @@ alias ll='ls -l'
 alias la='ls -A'
 alias l='ls -CF'
 alias lg='lazygit'
+alias oc='opencode'
 
 # tmux aliases
 alias switch='tmux switch -t'
