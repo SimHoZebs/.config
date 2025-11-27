@@ -1,32 +1,25 @@
 ---
 - name: Configure Development Environment
   hosts: localhost
-  become: no
+  become: false
   tasks:
     - name: Ensure ~/.profile exists and sources ~/.config/.profile
       ansible.builtin.lineinfile:
         dest: ~/.profile
         line: "[ -f ~/.config/.profile ] && source ~/.config/.profile"
         mode: "0644"
-        create: yes
+        create: true
 
     - name: Ensure ~/.bashrc exists and sources ~/.config/.bashrc
       ansible.builtin.lineinfile:
         dest: ~/.bashrc
         line: "[ -f ~/.config/.bashrc ] && source ~/.config/.bashrc"
         mode: "0644"
-        create: yes
-
-    - name: Source updated configs
-      ansible.builtin.shell: |
-        source ~/.profile
-        source ~/.bashrc
-      args:
-        executable: /bin/bash
+        create: true
 
     - include_tasks: tasks/ssh-config.yml
 
-    - include_tasks: tasks/install-system-packages.yml
+    - include_tasks: tasks/main.yml
 
     - include_tasks: tasks/git-config.yml
 
@@ -40,25 +33,6 @@
         repo: "git@github.com:SimHoZebs/.config.git"
         dest: ~/.config
         version: master
-        update: yes
-        force: no
+        update: true
+        force: false
       when: not git_stat.stat.exists
-
-    - name: Ensure Catppuccin tmux plugin directory exists
-      ansible.builtin.file:
-        path: ~/.config/tmux/plugins/catppuccin
-        state: directory
-        mode: "0755"
-
-    - name: Clone Catppuccin tmux plugin
-      ansible.builtin.git:
-        repo: https://github.com/catppuccin/tmux.git
-        dest: ~/.config/tmux/plugins/catppuccin/tmux
-        version: v2.1.2
-        force: yes
-
-    - name: Source .bashrc
-      ansible.builtin.shell: source ~/.bashrc
-      args:
-        executable: /bin/bash
-      when: ansible_env.SHELL == "/bin/bash"

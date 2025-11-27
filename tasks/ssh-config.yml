@@ -31,6 +31,6 @@
         HostName github.com
         User git
         IdentityFile ~/.ssh/id_ed25519
-        StrictHostKeyChecking no
+        StrictHostKeyChecking accept-new
     create: yes
     mode: "0600"

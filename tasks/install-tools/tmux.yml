@@ -1,0 +1,19 @@
+---
+- name: Clone TPM (Tmux Plugin Manager)
+  ansible.builtin.git:
+    repo: "https://github.com/tmux-plugins/tpm"
+    dest: "~/.config/tmux/plugins/tpm"
+    update: true
+
+- name: Ensure Catppuccin tmux plugin directory exists
+  ansible.builtin.file:
+    path: ~/.config/tmux/plugins/catppuccin
+    state: directory
+    mode: "0755"
+
+- name: Clone Catppuccin tmux plugin
+  ansible.builtin.git:
+    repo: https://github.com/catppuccin/tmux.git
+    dest: ~/.config/tmux/plugins/catppuccin/tmux
+    version: v2.1.2
+    force: true

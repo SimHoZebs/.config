@@ -1,0 +1,29 @@
+---
+- name: Detect dnf package manager
+  ansible.builtin.command: which dnf
+  register: dnf_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Detect apt package manager
+  ansible.builtin.command: which apt
+  register: apt_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Detect Homebrew
+  ansible.builtin.command: which brew
+  register: brew_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Set package manager facts
+  ansible.builtin.set_fact:
+    has_dnf: "{{ dnf_check.rc == 0 }}"
+    has_apt: "{{ apt_check.rc == 0 }}"
+    has_brew: "{{ brew_check.rc == 0 }}"
+
+- name: Set package name mappings
+  ansible.builtin.set_fact:
+    pkg_fd: "{{ 'fd' if has_brew else 'fd-find' }}"
+    pkg_golang: "{{ 'go' if has_brew else 'golang' }}"

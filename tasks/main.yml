@@ -1,0 +1,9 @@
+---
+- name: Detect platform and package manager
+  import_tasks: detect-platform.yml
+
+- name: Install system packages
+  import_tasks: install-system-packages.yml
+
+- name: Install development tools
+  import_tasks: install-tools/main.yml

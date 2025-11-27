@@ -1,10 +1,16 @@
 ---
-- name: Install essential packages
-  apt:
+- name: Enable lazygit COPR repository
+  ansible.builtin.command: dnf copr enable dejan/lazygit -y
+  become: true
+  register: copr_result
+  changed_when: "'already enabled' not in copr_result.stderr"
+  when: has_dnf
+
+- name: Install essential packages using built-in package manager
+  ansible.builtin.package:
     name:
       - curl
       - git
-      - zsh
       - btop
       - wget
       - gcc
@@ -15,65 +21,28 @@
       - ripgrep
       - luarocks
       - python3-pip
+      - neovim
+      - nodejs
+      - "{{ pkg_fd }}"
+      - tmux
+      - "{{ pkg_golang }}"
+      - lazygit
+      - gh
     state: present
-    update_cache: yes
-  become: yes
+    update_cache: true
+  become: true
 
-- name: Check if Homebrew is installed
-  ansible.builtin.command:
-    cmd: brew --version
-  register: brew_check
-  ignore_errors: yes
-  changed_when: false
-
-- name: Install Homebrew
-  ansible.builtin.shell:
-    cmd: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  when: brew_check.rc != 0
-
-- name: source .bashrc (for Homebrew)
-  ansible.builtin.shell: source ~/.bashrc
-  args:
-    executable: /bin/bash
-
-- name: Check if Go is installed
-  ansible.builtin.command:
-    cmd: go version
-  register: go_check
-  ignore_errors: yes
-  changed_when: false
-
-- name: Download Go archive
-  get_url:
-    url: https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
-    dest: /tmp/go1.24.0.linux-amd64.tar.gz
-  when: go_check.rc != 0
-
-- name: Extract Go archive
-  become: yes
-  ansible.builtin.unarchive:
-    src: /tmp/go1.24.0.linux-amd64.tar.gz
-    dest: /usr/local
-    remote_src: yes
-  when: go_check.rc != 0
-
-- name: Ensure Go binary path is in system-wide profile
-  become: yes
-  lineinfile:
-    path: /etc/profile
-    line: "export PATH=$PATH:/usr/local/go/bin"
-    create: yes
-
-- name: Apply profile changes (for Go)
-  shell: source /etc/profile
-  args:
-    executable: /bin/bash
+- name: Ensure Go bin directory is in PATH
+  ansible.builtin.lineinfile:
+    path: ~/.config/.bashrc
+    line: 'export PATH="$HOME/go/bin:$PATH"'
+    regexp: '^\s*export PATH=.*\$HOME/go/bin'
+    state: present
 
 - name: Check if rustup is installed
-  ansible.builtin.command:
-    cmd: rustup --version
+  ansible.builtin.command: rustup --version
   register: rustup_check
-  ignore_errors: yes
+  ignore_errors: true
   changed_when: false
 
 - name: Install rustup
@@ -82,53 +51,18 @@
     executable: /bin/bash
   when: rustup_check.rc != 0
 
-- name: source .bashrc (for cargo)
-  ansible.builtin.shell: source ~/.bashrc
+- name: Check if tiktoken_core is installed
+  ansible.builtin.shell: luarocks show tiktoken_core --local
   args:
     executable: /bin/bash
+  register: tiktoken_check
+  ignore_errors: true
+  changed_when: false
 
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
-    . "~/.cargo/env"
+    . ~/.cargo/env
     luarocks install tiktoken_core --local
   args:
     executable: /bin/bash
-
-- name: Homebrew tap
-  ansible.builtin.homebrew_tap:
-    name:
-      - arl/arl
-  when: brew_check.rc == 0 or brew_check.failed is defined
-
-- name: Install packages with Homebrew
-  ansible.builtin.homebrew:
-    name:
-      - fzf
-      - lazygit
-      - neovim
-      - zoxide
-      - tmux
-      - arl/arl/gitmux
-      - nodejs
-      - fd
-      - gh
-    state: present
-  when: brew_check.rc == 0 or brew_check.failed is defined
-
-- name: Clone TPM (Tmux Plugin Manager)
-  ansible.builtin.git:
-    repo: "https://github.com/tmux-plugins/tpm"
-    dest: "~/.config/tmux/plugins/tpm"
-    update: yes
-
-- name: Check if opencode is installed
-  ansible.builtin.command:
-    cmd: opencode --version
-  register: opencode_check
-  ignore_errors: yes
-  changed_when: false
-
-- name: Install opencode
-  ansible.builtin.shell:
-    cmd: curl -fsSL https://opencode.ai/install | bash
-  when: opencode_check.rc != 0
+  when: tiktoken_check.rc != 0

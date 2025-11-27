@@ -1,0 +1,12 @@
+---
+- name: Check if gitmux is installed
+  ansible.builtin.command: ~/go/bin/gitmux -V
+  register: gitmux_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install gitmux using go install
+  ansible.builtin.shell: go install github.com/arl/gitmux@latest
+  args:
+    executable: /bin/bash
+  when: gitmux_check.rc != 0

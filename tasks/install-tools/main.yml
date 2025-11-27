@@ -1,0 +1,13 @@
+---
+- name: Install Tmux Plugin Manager
+  import_tasks: tmux.yml
+
+- name: Install opencode
+  import_tasks: opencode.yml
+
+- name: Install zoxide
+  import_tasks: zoxide.yml
+
+- name: Install gitmux
+  import_tasks: gitmux.yml
+
