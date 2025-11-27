@@ -1,0 +1,27 @@
+---
+- name: Install Homebrew (Linuxbrew)
+  ansible.builtin.shell: |
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  args:
+    executable: /bin/bash
+  when: not has_brew
+
+- name: Detect Homebrew after installation
+  ansible.builtin.command: which brew
+  register: brew_recheck
+  ignore_errors: true
+  changed_when: false
+  when: not has_brew
+
+- name: Update has_brew fact
+  ansible.builtin.set_fact:
+    has_brew: "{{ brew_recheck.rc == 0 }}"
+  when: not has_brew
+
+- name: Add Homebrew to PATH in .bashrc
+  ansible.builtin.lineinfile:
+    path: ~/.config/.bashrc
+    line: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
+    regexp: 'eval.*linuxbrew.*shellenv'
+    state: present
+  when: has_brew

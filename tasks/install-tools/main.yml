@@ -1,9 +1,16 @@
 ---
+- name: Install Homebrew (required for ARM/macOS)
+  import_tasks: homebrew.yml
+  when: needs_brew
+
 - name: Install Tmux Plugin Manager
   import_tasks: tmux.yml
 
 - name: Install opencode
   import_tasks: opencode.yml
+
+- name: Install infisical
+  import_tasks: infisical.yml
 
 - name: Install zoxide
   import_tasks: zoxide.yml

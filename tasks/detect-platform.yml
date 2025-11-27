@@ -1,4 +1,10 @@
 ---
+- name: Detect architecture and OS
+  ansible.builtin.set_fact:
+    is_arm: "{{ ansible_architecture in ['aarch64', 'armv7l', 'armv6l'] }}"
+    is_macos: "{{ ansible_os_family == 'Darwin' }}"
+    needs_brew: "{{ ansible_architecture in ['aarch64', 'armv7l', 'armv6l'] or ansible_os_family == 'Darwin' }}"
+
 - name: Detect dnf package manager
   ansible.builtin.command: which dnf
   register: dnf_check

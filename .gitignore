@@ -22,3 +22,7 @@ gcloud/
 scoop/
 
 notion-key
+notion-electron/
+
+*.log
+ibus/

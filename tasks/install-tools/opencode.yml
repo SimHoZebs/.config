@@ -6,7 +6,13 @@
   ignore_errors: true
   changed_when: false
 
-- name: Install opencode
+- name: Install opencode via Homebrew (ARM/macOS)
+  community.general.homebrew:
+    name: sst/tap/opencode
+    state: present
+  when: opencode_check.rc != 0 and needs_brew
+
+- name: Install opencode via curl (x86_64 Linux)
   ansible.builtin.shell:
     cmd: curl -fsSL https://opencode.ai/install | bash
-  when: opencode_check.rc != 0
+  when: opencode_check.rc != 0 and not needs_brew
