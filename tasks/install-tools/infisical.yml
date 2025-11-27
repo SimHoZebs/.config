@@ -1,0 +1,39 @@
+---
+- name: Check if infisical is installed
+  ansible.builtin.command: infisical --version
+  register: infisical_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install infisical via Homebrew (ARM/macOS)
+  community.general.homebrew:
+    name: infisical/get-cli/infisical
+    state: present
+  when: infisical_check.rc != 0 and needs_brew
+
+- name: Add Infisical repository (Debian/Ubuntu)
+  ansible.builtin.shell: |
+    curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
+  become: true
+  when: infisical_check.rc != 0 and has_apt and not needs_brew
+
+- name: Install infisical (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: infisical
+    state: present
+    update_cache: true
+  become: true
+  when: infisical_check.rc != 0 and has_apt and not needs_brew
+
+- name: Add Infisical repository (RedHat/Fedora)
+  ansible.builtin.shell: |
+    curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.rpm.sh' | bash
+  become: true
+  when: infisical_check.rc != 0 and has_dnf and not needs_brew
+
+- name: Install infisical (RedHat/Fedora)
+  ansible.builtin.dnf:
+    name: infisical
+    state: present
+  become: true
+  when: infisical_check.rc != 0 and has_dnf and not needs_brew

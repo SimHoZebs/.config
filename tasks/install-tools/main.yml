@@ -18,3 +18,6 @@
 - name: Install gitmux
   import_tasks: gitmux.yml
 
+- name: Install tailscale
+  import_tasks: tailscale.yml
+
