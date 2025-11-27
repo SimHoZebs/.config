@@ -18,6 +18,7 @@ config.keys = {
 
 	{ key = "c", mods = "LEADER", action = wezterm.action({ SpawnTab = "CurrentPaneDomain" }) },
 	{ key = "y", mods = "LEADER", action = wezterm.action.CopyTo("ClipboardAndPrimarySelection") },
+	{ key = "[", mods = "LEADER", action = wezterm.action.ActivateCopyMode },
 	{ key = "v", mods = "CTRL", action = wezterm.action.PasteFrom("Clipboard") },
 
 	{ key = "V", mods = "LEADER", action = wezterm.action({ SplitVertical = { domain = "CurrentPaneDomain" } }) },
