@@ -55,7 +55,7 @@
         repo: https://github.com/catppuccin/tmux.git
         dest: ~/.config/tmux/plugins/catppuccin/tmux
         version: v2.1.2
-        force: no
+        force: yes
 
     - name: Source .bashrc
       ansible.builtin.shell: source ~/.bashrc
