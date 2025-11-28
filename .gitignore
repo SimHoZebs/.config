@@ -26,3 +26,13 @@ notion-electron/
 
 *.log
 ibus/
+
+# GNOME/system auto-generated files
+.gsd-keyboard.settings-ported
+evolution/
+gnome-initial-setup-done
+gtk-3.0/
+mimeapps.list
+monitors.xml
+user-dirs.dirs
+user-dirs.locale

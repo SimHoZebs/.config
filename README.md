@@ -1,9 +1,11 @@
-While the flake is kind of written to support building a custom NixOS iso, I am only running home-manager on either Debian or Ubuntu.
+Dotfiles and development environment configuration managed with Ansible. Supports Debian, Ubuntu, Fedora, and macOS.
 
-1. Install Nix package manager `sh <(curl -L https://nixos.org/nix/install) --daemon`
-2. Clone this repo `nix shell nixpkgs#git -c git clone https://github.com/simhozebs/.config.git`
-3. In .config, `nix run .#homeConfigurations.simho.activationPackage`
+## Setup
 
-## Manual set ups still required:
-- [Tailscale](https://tailscale.com/kb/1031/install-linux)
+1. Clone this repo to `~/.config`
+2. Run `./bootstrap.sh`
+
+The bootstrap script will install Python, pipx, and Ansible, then run the playbook to configure your environment.
+
+## Manual setups still required
 - [Docker](https://docs.docker.com/engine/install/)

@@ -44,9 +44,11 @@ config.keys = {
 }
 
 config.font_size = 12
+config.warn_about_missing_glyphs = false
 config.font = wezterm.font_with_fallback({
 	{ family = "Iosevka Custom", stretch = "Expanded" },
 	{ family = "IosevkaTerm Nerd Font" },
+	"monospace",
 })
 config.window_decorations = "RESIZE"
 config.tab_and_split_indices_are_zero_based = true
