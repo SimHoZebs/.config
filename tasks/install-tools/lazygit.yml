@@ -1,0 +1,27 @@
+---
+- name: Check if lazygit is installed
+  ansible.builtin.command:
+    cmd: lazygit --version
+  register: lazygit_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install lazygit via Homebrew (macOS/Debian/Ubuntu)
+  community.general.homebrew:
+    name: lazygit
+    state: present
+  when: lazygit_check.rc != 0 and has_brew
+
+- name: Enable lazygit COPR repository (Fedora/CentOS)
+  ansible.builtin.command: dnf copr enable dejan/lazygit -y
+  become: true
+  register: copr_result
+  changed_when: "'already enabled' not in copr_result.stderr"
+  when: lazygit_check.rc != 0 and has_dnf and not has_brew
+
+- name: Install lazygit via dnf (Fedora/CentOS)
+  ansible.builtin.dnf:
+    name: lazygit
+    state: present
+  become: true
+  when: lazygit_check.rc != 0 and has_dnf and not has_brew

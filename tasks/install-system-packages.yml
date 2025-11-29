@@ -1,11 +1,4 @@
 ---
-- name: Enable lazygit COPR repository
-  ansible.builtin.command: dnf copr enable dejan/lazygit -y
-  become: true
-  register: copr_result
-  changed_when: "'already enabled' not in copr_result.stderr"
-  when: has_dnf
-
 - name: Install essential packages using built-in package manager
   ansible.builtin.package:
     name:
@@ -24,7 +17,6 @@
       - neovim
       - nodejs
       - tmux
-      - lazygit
       - gh
     state: present
     update_cache: true

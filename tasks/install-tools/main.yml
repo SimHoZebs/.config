@@ -27,6 +27,9 @@
 - name: Install go
   import_tasks: go.yml
 
+- name: Install lazygit
+  import_tasks: lazygit.yml
+
 - name: Install pnpm
   import_tasks: pnpm.yml
 
