@@ -24,6 +24,9 @@
 - name: Install fd
   import_tasks: fd.yml
 
+- name: Install go
+  import_tasks: go.yml
+
 - name: Install pnpm
   import_tasks: pnpm.yml
 

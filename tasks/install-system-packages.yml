@@ -24,19 +24,11 @@
       - neovim
       - nodejs
       - tmux
-      - "{{ pkg_golang }}"
       - lazygit
       - gh
     state: present
     update_cache: true
   become: true
-
-- name: Ensure Go bin directory is in PATH
-  ansible.builtin.lineinfile:
-    path: ~/.config/.bashrc
-    line: 'export PATH="$HOME/go/bin:$PATH"'
-    regexp: '^\s*export PATH=.*\$HOME/go/bin'
-    state: present
 
 - name: Check if rustup is installed
   ansible.builtin.command: rustup --version

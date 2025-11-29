@@ -1,31 +1,16 @@
 ---
-- name: Check if fd exists
+- name: Check if fd is installed
   ansible.builtin.command:
-    cmd: which fd
+    cmd: fd --version
   register: fd_check
   ignore_errors: true
   changed_when: false
 
-- name: Check if fdfind exists (Debian/Ubuntu package)
-  ansible.builtin.command:
-    cmd: which fdfind
-  register: fdfind_check
-  ignore_errors: true
-  changed_when: false
-
-- name: Install fd via Homebrew (ARM/macOS)
+- name: Install fd via Homebrew (macOS/Debian/Ubuntu)
   community.general.homebrew:
     name: fd
     state: present
-  when: fd_check.rc != 0 and needs_brew
-
-- name: Install fd via apt (Debian/Ubuntu)
-  ansible.builtin.apt:
-    name: fd-find
-    state: present
-    update_cache: true
-  become: true
-  when: fd_check.rc != 0 and has_apt and not has_brew
+  when: fd_check.rc != 0 and has_brew
 
 - name: Install fd via dnf (Fedora/CentOS)
   ansible.builtin.dnf:
@@ -33,40 +18,3 @@
     state: present
   become: true
   when: fd_check.rc != 0 and has_dnf and not has_brew
-
-- name: Create system-wide fd symlink to fdfind (if present)
-  ansible.builtin.file:
-    src: /usr/bin/fdfind
-    dest: /usr/local/bin/fd
-    state: link
-    mode: '0755'
-    force: false
-  become: true
-  when:
-    - fd_check.rc != 0
-    - fdfind_check.rc == 0
-    - not has_brew
-
-- name: Ensure ~/.local/bin exists for fallback
-  ansible.builtin.file:
-    path: ~/.local/bin
-    state: directory
-    mode: '0755'
-  when: fd_check.rc != 0 and fdfind_check.rc == 0 and not has_brew
-
-- name: Create user-local fd symlink to fdfind (fallback)
-  ansible.builtin.file:
-    src: /usr/bin/fdfind
-    dest: ~/.local/bin/fd
-    state: link
-    mode: '0755'
-    force: false
-  when: fd_check.rc != 0 and fdfind_check.rc == 0 and not has_brew
-
-- name: Ensure ~/.local/bin is on PATH
-  ansible.builtin.lineinfile:
-    path: ~/.config/.bashrc
-    line: 'export PATH="$HOME/.local/bin:$PATH"'
-    regexp: '^\s*export PATH=.*\$HOME/\.local/bin'
-    state: present
-  when: fd_check.rc != 0 and fdfind_check.rc == 0 and not has_brew

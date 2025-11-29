@@ -1,0 +1,27 @@
+---
+- name: Check if go is installed
+  ansible.builtin.command:
+    cmd: go version
+  register: go_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install go via Homebrew (macOS/Debian/Ubuntu)
+  community.general.homebrew:
+    name: go
+    state: present
+  when: go_check.rc != 0 and has_brew
+
+- name: Install go via dnf (Fedora/CentOS)
+  ansible.builtin.dnf:
+    name: golang
+    state: present
+  become: true
+  when: go_check.rc != 0 and has_dnf and not has_brew
+
+- name: Ensure Go bin directory is in PATH
+  ansible.builtin.lineinfile:
+    path: ~/.config/.bashrc
+    line: 'export PATH="$HOME/go/bin:$PATH"'
+    regexp: '^\s*export PATH=.*\$HOME/go/bin'
+    state: present
