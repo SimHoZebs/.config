@@ -140,9 +140,21 @@ if [ -d /home/linuxbrew/.linuxbrew ]; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
-if [[ $VSCODE_TERMINAL != "1" ]] && command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
-  # Check if session exists, if not create it
-  exec tmux new-session -A -s main
+# Tmux auto-start configuration
+tmux_new_session=false
+case "$(hostname)" in
+    simho-fedora)
+        tmux_new_session=true
+        ;;
+esac
+[[ "$VSCODE_TERMINAL" == "1" ]] && tmux_new_session=true
+
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+    if [[ "$tmux_new_session" == "true" ]]; then
+        exec tmux new-session
+    else
+        exec tmux new-session -A -s main
+    fi
 fi
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
