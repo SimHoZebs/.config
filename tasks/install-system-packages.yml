@@ -23,7 +23,6 @@
       - python3-pip
       - neovim
       - nodejs
-      - "{{ pkg_fd }}"
       - tmux
       - "{{ pkg_golang }}"
       - lazygit

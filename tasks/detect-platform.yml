@@ -31,5 +31,4 @@
 
 - name: Set package name mappings
   ansible.builtin.set_fact:
-    pkg_fd: "{{ 'fd' if has_brew else 'fd-find' }}"
     pkg_golang: "{{ 'go' if has_brew else 'golang' }}"

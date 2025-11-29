@@ -1,0 +1,20 @@
+---
+- name: Check if @antfu/ni is installed
+  ansible.builtin.command:
+    cmd: ni --version
+  register: ni_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install @antfu/ni via Homebrew (ARM/macOS)
+  community.general.homebrew:
+    name: ni
+    state: present
+  when: ni_check.rc != 0 and needs_brew
+
+- name: Install @antfu/ni via npm (x86_64 Linux)
+  community.general.npm:
+    name: "@antfu/ni"
+    global: true
+    state: present
+  when: ni_check.rc != 0 and not needs_brew
