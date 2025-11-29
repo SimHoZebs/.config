@@ -1,42 +1,32 @@
-github-copilot/
-go/
-simple-update-notifier/
-tmux/plugins
-.ignore
-astro/
-flutter/
-gh/
-glab-cli/
-gemini-cli.json
-xfce4/
-obs-studio/
-btop/
-htop/
-pulse/
-nvtop/
-Thunar/
-dconf/
-gcloud/
+# Ignore everything by default
+*
 
-# Windows
-scoop/
+# Explicitly include tracked directories
+!.gitignore
+!git/
+!git/**
+!lazygit/
+!lazygit/**
+!nvim/
+!nvim/**
+!opencode/
+!opencode/**
+!tasks/
+!tasks/**
+!tmux/
+!tmux/**
+!wezterm/
+!wezterm/**
 
-notion-key
-notion-electron/
+# Explicitly include tracked files
+!.bashrc
+!.profile
+!bootstrap.sh
+!gitmux.conf
+!package.json
+!playbook.yml
+!README.md
 
-*.log
-ibus/
-r2modman*/
-
-# GNOME/system auto-generated files
-*Cache*/
-.gsd-keyboard.settings-ported
-evolution/
-org.gnome*/
-gnome-initial-setup-done
-gtk-3.0/
-mimeapps.list
-monitors.xml
-user-dirs.dirs
-user-dirs.locale
-monitors.xml~
+# Exclude specific items within included directories
+tmux/plugins/
+opencode/notion-key
