@@ -7,14 +7,10 @@
   "mcp": {
     "notion_mcp": {
       "type": "local",
-      "command": [
-        "infisical",
-        "run",
-        "--",
-        "npx",
-        "-y",
-        "@notionhq/notion-mcp-server"
-      ],
+      "command": ["npx", "-y", "@notionhq/notion-mcp-server"],
+      "environment": {
+        "NOTION_TOKEN": "{file:./notion-key}"
+      },
       "enabled": true
     }
   }
