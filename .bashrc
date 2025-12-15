@@ -99,7 +99,7 @@ ssht() {
     if [ -n "$TMUX" ]; then
         local session_name
         session_name=$(tmux display-message -p '#S')
-        tmux detach-client -E "TERM=xterm-256color ssh $@; tmux attach -t '$session_name'"
+        tmux detach-client -E "TERM=xterm-256color ssh -t $@; tmux attach -t '$session_name'"
     else
         TERM=xterm-256color ssh "$@"
     fi
