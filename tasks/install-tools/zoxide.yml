@@ -2,7 +2,7 @@
 - name: Check if zoxide is installed
   ansible.builtin.command: zoxide --version
   register: zoxide_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install zoxide

@@ -15,6 +15,9 @@
 - name: Install zoxide
   import_tasks: zoxide.yml
 
+- name: Install go
+  import_tasks: go.yml
+
 - name: Install gitmux
   import_tasks: gitmux.yml
 
@@ -23,9 +26,6 @@
 
 - name: Install fd
   import_tasks: fd.yml
-
-- name: Install go
-  import_tasks: go.yml
 
 - name: Install lazygit
   import_tasks: lazygit.yml

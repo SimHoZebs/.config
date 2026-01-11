@@ -3,7 +3,7 @@
   ansible.builtin.command:
     cmd: go version
   register: go_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install go via Homebrew (macOS/Debian/Ubuntu)

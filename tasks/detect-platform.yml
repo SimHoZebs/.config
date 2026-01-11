@@ -2,19 +2,19 @@
 - name: Detect dnf package manager
   ansible.builtin.command: which dnf
   register: dnf_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Detect apt package manager
   ansible.builtin.command: which apt
   register: apt_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Detect Homebrew
   ansible.builtin.command: which brew
   register: brew_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Set package manager facts
@@ -25,7 +25,7 @@
 
 - name: Detect architecture and OS
   ansible.builtin.set_fact:
-    is_arm: "{{ ansible_architecture in ['aarch64', 'armv7l', 'armv6l'] }}"
-    is_macos: "{{ ansible_os_family == 'Darwin' }}"
+    is_arm: "{{ ansible_facts['architecture'] in ['aarch64', 'armv7l', 'armv6l'] }}"
+    is_macos: "{{ ansible_facts['os_family'] == 'Darwin' }}"
     # Debian/Ubuntu (apt) also needs brew for fd and go
-    needs_brew: "{{ ansible_architecture in ['aarch64', 'armv7l', 'armv6l'] or ansible_os_family == 'Darwin' or has_apt }}"
+    needs_brew: "{{ ansible_facts['architecture'] in ['aarch64', 'armv7l', 'armv6l'] or ansible_facts['os_family'] == 'Darwin' or has_apt }}"

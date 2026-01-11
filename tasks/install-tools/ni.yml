@@ -3,7 +3,7 @@
   ansible.builtin.command:
     cmd: ni --version
   register: ni_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install @antfu/ni via Homebrew (ARM/macOS)

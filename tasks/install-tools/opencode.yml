@@ -3,8 +3,14 @@
   ansible.builtin.command:
     cmd: opencode --version
   register: opencode_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: Tap sst/tap repository
+  community.general.homebrew_tap:
+    name: sst/tap
+    state: present
+  when: opencode_check.rc != 0 and needs_brew
 
 - name: Install opencode via Homebrew (ARM/macOS)
   community.general.homebrew:

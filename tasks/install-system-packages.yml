@@ -1,5 +1,27 @@
 ---
-- name: Install essential packages using built-in package manager
+- name: Install essential packages using Homebrew (macOS)
+  ansible.builtin.package:
+    name:
+      - curl
+      - git
+      - btop
+      - wget
+      - gcc
+      - cmake
+      - fzf
+      - unzip
+      - rsync
+      - ripgrep
+      - luarocks
+      - python
+      - neovim
+      - node
+      - tmux
+      - gh
+    state: present
+  when: is_macos | default(false)
+
+- name: Install essential packages using built-in package manager (Linux)
   ansible.builtin.package:
     name:
       - curl
@@ -21,11 +43,12 @@
     state: present
     update_cache: true
   become: true
+  when: not is_macos | default(false)
 
 - name: Check if rustup is installed
   ansible.builtin.command: rustup --version
   register: rustup_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install rustup
@@ -39,7 +62,7 @@
   args:
     executable: /bin/bash
   register: tiktoken_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install tiktoken_core via luarocks

@@ -3,7 +3,7 @@
   ansible.builtin.command:
     cmd: fd --version
   register: fd_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install fd via Homebrew (macOS/Debian/Ubuntu)

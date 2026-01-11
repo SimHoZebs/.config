@@ -9,7 +9,7 @@
 - name: Detect Homebrew after installation
   ansible.builtin.command: which brew
   register: brew_recheck
-  ignore_errors: true
+  failed_when: false
   changed_when: false
   when: not has_brew
 

@@ -2,7 +2,7 @@
 - name: Check if tailscale is installed
   ansible.builtin.command: tailscale --version
   register: tailscale_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Install tailscale
