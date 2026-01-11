@@ -45,6 +45,8 @@ esac
 
 source ~/.config/.bashrc
 
+pipx ensurepath --force
+
 pipx install --include-deps ansible || { echo "Failed to install ansible"; exit 1; }
 
 ansible-playbook playbook.yml || { echo "Failed to run ansible playbook"; exit 1; }

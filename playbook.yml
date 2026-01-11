@@ -17,6 +17,21 @@
         mode: "0644"
         create: true
 
+    - name: Ensure ~/.config/.zshrc exists and sources ~/.config/.bashrc
+      ansible.builtin.copy:
+        dest: ~/.config/.zshrc
+        content: |
+          source ~/.config/.bashrc
+        mode: "0644"
+        force: false
+
+    - name: Ensure ~/.zshrc exists and sources ~/.config/.zshrc
+      ansible.builtin.lineinfile:
+        dest: ~/.zshrc
+        line: "[ -f ~/.config/.zshrc ] && source ~/.config/.zshrc"
+        mode: "0644"
+        create: true
+
     - include_tasks: tasks/ssh-config.yml
 
     - include_tasks: tasks/main.yml

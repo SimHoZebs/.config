@@ -13,7 +13,9 @@ esac
 HISTCONTROL=ignoreboth
 
 # append to the history file, don't overwrite it
-shopt -s histappend
+if command -v shopt &> /dev/null; then
+    shopt -s histappend
+fi
 PROMPT_COMMAND="history -a; history -n; ${PROMPT_COMMAND}"
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
@@ -22,7 +24,9 @@ HISTFILESIZE=2000
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
-shopt -s checkwinsize
+if command -v shopt &> /dev/null; then
+    shopt -s checkwinsize
+fi
 
 # If set, the pattern "**" used in a pathname expansion context will
 # match all files and zero or more directories and subdirectories.
@@ -46,32 +50,43 @@ esac
 # should be on the output of commands, not on the prompt
 #force_color_prompt=yes
 
-if [ -n "$force_color_prompt" ]; then
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-	# We have color support; assume it's compliant with Ecma-48
-	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-	# a case would tend to support setf rather than setaf.)
-	color_prompt=yes
-    else
-	color_prompt=
+# Set prompt based on shell type
+if [[ -n "$BASH_VERSION" ]]; then
+    # Bash prompt setup
+    if [ -n "$force_color_prompt" ]; then
+        if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
+            # We have color support; assume it's compliant with Ecma-48
+            # (ISO/IEC-6429). (Lack of such support is extremely rare, and such
+            # a case would tend to support setf rather than setaf.)
+            color_prompt=yes
+        else
+            color_prompt=
+        fi
     fi
-fi
 
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+    if [ "$color_prompt" = yes ]; then
+        PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    else
+        PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+    fi
+    unset color_prompt force_color_prompt
+elif [[ -n "$ZSH_VERSION" ]]; then
+    # Zsh prompt setup
+    autoload -U colors && colors
+    PROMPT="%{$fg[green]%}%n@%m%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}%# "
+    RPROMPT="%{$fg[yellow]%}%D{%H:%M}%{$reset_color%}"
 fi
-unset color_prompt force_color_prompt
 
 # If this is an xterm set the title to user@host:dir
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
+if [[ -n "$BASH_VERSION" ]]; then
+    case "$TERM" in
+    xterm*|rxvt*)
+        PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
+        ;;
+    *)
+        ;;
+    esac
+fi
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -126,11 +141,13 @@ fi
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
-if ! shopt -oq posix; then
-  if [ -f /usr/share/bash-completion/bash_completion ]; then
-    . /usr/share/bash-completion/bash_completion
-  elif [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
+if command -v shopt &> /dev/null; then
+  if ! shopt -oq posix; then
+    if [ -f /usr/share/bash-completion/bash_completion ]; then
+      . /usr/share/bash-completion/bash_completion
+    elif [ -f /etc/bash_completion ]; then
+      . /etc/bash_completion
+    fi
   fi
 fi
 
@@ -147,7 +164,7 @@ fi
 
 # if homebrew is installed
 if [ -d /home/linuxbrew/.linuxbrew ]; then
-    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
 # Tmux auto-start configuration
@@ -159,7 +176,7 @@ case "$(hostname)" in
 esac
 [[ "$VSCODE_TERMINAL" == "1" ]] && tmux_new_session=true
 
-if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ] && [[ -n "$BASH_VERSION" || -n "$ZSH_VERSION" ]]; then
     if [[ "$tmux_new_session" == "true" ]]; then
         exec tmux new-session
     else
@@ -167,10 +184,14 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] &&
     fi
 fi
 
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
-
-eval "$(fzf --bash)"
-eval "$(zoxide init bash --cmd cd)"
+if [[ -n "$BASH_VERSION" ]]; then
+    [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+    eval "$(fzf --bash)"
+    eval "$(zoxide init bash --cmd cd)"
+else
+    eval "$(fzf --zsh)"
+    eval "$(zoxide init zsh --cmd cd)"
+fi
 
 # Android platform-tools
 if [ -d "/opt/android/platform-tools" ]; then
