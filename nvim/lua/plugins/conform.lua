@@ -12,6 +12,7 @@ vim.g.autoformat_enabled = true
 return {
   {
     'stevearc/conform.nvim',
+    version = '*',
     event = 'VeryLazy',
     opts = {
       notify_on_error = true,
