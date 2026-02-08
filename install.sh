@@ -198,6 +198,9 @@ pipx install --include-deps ansible || { echo "Failed to install ansible"; exit 
 echo "✓ Ansible installed successfully!"
 echo ""
 
+# Add pipx bin directory to PATH for current shell
+export PATH="$HOME/.local/bin:$PATH"
+
 # Run Ansible playbook
 echo "============================================"
 echo "Running Ansible playbook..."
