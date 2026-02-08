@@ -17,4 +17,5 @@
     name: "@antfu/ni"
     global: true
     state: present
+  become: true
   when: ni_check.rc != 0 and not needs_brew
