@@ -11,6 +11,66 @@ echo "SimHoZebs/.config Installation Script"
 echo "============================================"
 echo ""
 
+# Check if git is installed
+if ! command -v git >/dev/null 2>&1; then
+    echo "Git is not installed. Installing git..."
+    
+    # Detect OS and distribution
+    OS=$(uname -s)
+    DISTRO=""
+    
+    if [ "$OS" = "Linux" ]; then
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            DISTRO=$ID
+        elif command -v lsb_release >/dev/null 2>&1; then
+            DISTRO=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+        fi
+    fi
+    
+    case $OS in
+        Linux)
+            case $DISTRO in
+                ubuntu|debian)
+                    sudo apt update || { echo "Failed to update apt"; exit 1; }
+                    sudo apt install -y git || { echo "Failed to install git"; exit 1; }
+                    ;;
+                fedora)
+                    sudo dnf install -y git || { echo "Failed to install git"; exit 1; }
+                    ;;
+                *)
+                    echo "Unsupported Linux distribution: $DISTRO"
+                    echo "Please install git manually and run this script again."
+                    exit 1
+                    ;;
+            esac
+            ;;
+        Darwin)
+            # macOS - check if Homebrew is available
+            if command -v brew >/dev/null 2>&1; then
+                brew install git || { echo "Failed to install git"; exit 1; }
+            else
+                echo "Homebrew is not installed. Please install git manually:"
+                echo "  1. Install Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                echo "  2. Run: brew install git"
+                echo "  3. Run this script again"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Unsupported OS: $OS"
+            echo "Please install git manually and run this script again."
+            exit 1
+            ;;
+    esac
+    
+    echo "✓ Git installed successfully!"
+    echo ""
+else
+    echo "✓ Git is already installed"
+    echo ""
+fi
+
 # Check if .config directory exists
 if [ -d "$CONFIG_DIR" ]; then
     echo "⚠️  Existing .config directory found at $CONFIG_DIR"
