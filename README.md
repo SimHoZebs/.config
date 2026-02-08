@@ -5,13 +5,13 @@ Dotfiles and development environment configuration managed with Ansible. Support
 Run this single command to install:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/SimHoZebs/.config/master/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/SimHoZebs/.config/ansible/install.sh)
 ```
 
 Or with wget:
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/SimHoZebs/.config/master/install.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/SimHoZebs/.config/ansible/install.sh)
 ```
 
 The install script will:

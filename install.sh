@@ -23,7 +23,7 @@ if [ -d "$CONFIG_DIR" ]; then
         if [[ "$CURRENT_REMOTE" == *"SimHoZebs/.config"* ]]; then
             echo "✓ This appears to be the SimHoZebs/.config repository already."
             echo "  Updating instead of cloning..."
-            git pull origin master || { 
+            git pull origin ansible || { 
                 echo "Failed to update repository. Please check your network connection or resolve any merge conflicts manually."; 
                 exit 1; 
             }
