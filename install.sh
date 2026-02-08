@@ -122,7 +122,7 @@ if [ -z "$SKIP_CLONE" ]; then
 
     echo "✓ Repository cloned successfully!"
     echo ""
-    cd "$CONFIG_DIR"
+    cd "$CONFIG_DIR" || { echo "Failed to change to $CONFIG_DIR"; exit 1; }
 fi
 
 # Bootstrap: Install dependencies and run playbook
@@ -180,8 +180,8 @@ echo "✓ Dependencies installed successfully!"
 echo ""
 
 # Source bashrc if it exists
-if [ -f "$HOME/.config/.bashrc" ]; then
-    source "$HOME/.config/.bashrc"
+if [ -f "$CONFIG_DIR/.bashrc" ]; then
+    source "$CONFIG_DIR/.bashrc"
 fi
 
 # Ensure pipx path
@@ -207,7 +207,7 @@ echo "Running Ansible playbook..."
 echo "============================================"
 echo ""
 
-ansible-playbook playbook.yml || { echo "Failed to run ansible playbook"; exit 1; }
+ansible-playbook "$CONFIG_DIR/playbook.yml" || { echo "Failed to run ansible playbook"; exit 1; }
 
 echo "✓ Ansible playbook completed successfully!"
 echo ""
