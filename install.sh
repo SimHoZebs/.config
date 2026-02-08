@@ -23,11 +23,17 @@ if [ -d "$CONFIG_DIR" ]; then
         if [[ "$CURRENT_REMOTE" == *"SimHoZebs/.config"* ]]; then
             echo "✓ This appears to be the SimHoZebs/.config repository already."
             echo "  Updating instead of cloning..."
-            git pull origin master || { echo "Failed to update repository"; exit 1; }
+            git pull origin master || { 
+                echo "Failed to update repository. Please check your network connection or resolve any merge conflicts manually."; 
+                exit 1; 
+            }
             echo "✓ Repository updated successfully!"
             echo ""
             echo "Running bootstrap script..."
-            ./bootstrap.sh
+            ./bootstrap.sh || { 
+                echo "Bootstrap script failed. Please check the output above for details."; 
+                exit 1; 
+            }
             exit 0
         fi
     fi
@@ -57,7 +63,10 @@ echo ""
 # Run bootstrap script
 echo "Running bootstrap script..."
 cd "$CONFIG_DIR"
-./bootstrap.sh
+./bootstrap.sh || { 
+    echo "Bootstrap script failed. Please check the output above for details."; 
+    exit 1; 
+}
 
 echo ""
 echo "============================================"
@@ -72,4 +81,4 @@ if [ -d "$BACKUP_DIR" ]; then
     echo "  rm -rf $BACKUP_DIR"
 fi
 echo ""
-echo "Please restart your shell or run: source ~/.bashrc"
+echo "Please restart your shell or source your shell configuration file."
