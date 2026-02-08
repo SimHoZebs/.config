@@ -51,7 +51,8 @@ if ! command -v git >/dev/null 2>&1; then
                 brew install git || { echo "Failed to install git"; exit 1; }
             else
                 echo "Homebrew is not installed. Please install git manually:"
-                echo "  1. Install Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                echo "  1. Install Homebrew from https://brew.sh"
+                echo "     /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
                 echo "  2. Run: brew install git"
                 echo "  3. Run this script again"
                 exit 1
