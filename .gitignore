@@ -21,7 +21,6 @@
 # Explicitly include tracked files
 !.bashrc
 !.profile
-!bootstrap.sh
 !install.sh
 !gitmux.conf
 !package.json
