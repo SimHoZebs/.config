@@ -200,3 +200,4 @@ elif [ -d "$HOME/platform-tools" ]; then
     export PATH="$PATH:$HOME/platform-tools"
 fi
 export PATH="$HOME/go/bin:$PATH"
+export PATH="$HOME/.local/share/pnpm:$PATH"
