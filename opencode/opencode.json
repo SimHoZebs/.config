@@ -5,7 +5,22 @@
     "bash": {
       "*": "ask",
       "ls *": "allow",
-      "grep *": "allow"
+      "grep *": "allow",
+      "docker ps *": "allow",
+      "find *": "allow",
+      "pwd": "allow",
+      "git status": "allow",
+      "git branch": "allow",
+      "git log *": "allow",
+      "git diff --stat *": "allow",
+      "whoami": "allow",
+      "date": "allow",
+      "node -v": "allow",
+      "npm -v": "allow",
+      "python --version": "allow",
+      "python3 --version": "allow",
+      "pip list": "allow",
+      "npm list *": "allow"
     }
   },
   "mcp": {
