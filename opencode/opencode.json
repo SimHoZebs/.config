@@ -12,7 +12,7 @@
       "git status": "allow",
       "git branch": "allow",
       "git log *": "allow",
-      "git diff --stat *": "allow",
+      "git diff *": "allow",
       "whoami": "allow",
       "date": "allow",
       "node -v": "allow",
@@ -20,7 +20,8 @@
       "python --version": "allow",
       "python3 --version": "allow",
       "pip list": "allow",
-      "npm list *": "allow"
+      "npm list *": "allow",
+      "go doc *": "allow"
     }
   },
   "mcp": {
