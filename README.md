@@ -15,18 +15,20 @@ bash <(wget -qO- https://raw.githubusercontent.com/SimHoZebs/.config/ansible/ins
 ```
 
 The install script will:
-- Backup your existing `~/.config` directory (if it exists)
-- Clone this repository to `~/.config`
-- Run the bootstrap script to set up your environment
+- Install Git (if not already installed)
+- Backup your existing `~/.config` directory (if it exists and is not this repository)
+- Clone this repository to `~/.config` (or update it if already cloned)
+- Install Python, pipx, and Ansible
+- Run the Ansible playbook to set up your environment
 
 ## Manual Setup
 
 If you prefer to install manually:
 
 1. Clone this repo to `~/.config`
-2. Run `./bootstrap.sh`
+2. Run `./install.sh`
 
-The bootstrap script will install Python, pipx, and Ansible, then run the playbook to configure your environment.
+The install script will install Git (if needed), Python, pipx, and Ansible, then run the playbook to configure your environment.
 
 ## Manual setups still required
 - [Docker](https://docs.docker.com/engine/install/)

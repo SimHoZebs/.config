@@ -90,44 +90,127 @@ if [ -d "$CONFIG_DIR" ]; then
             }
             echo "✓ Repository updated successfully!"
             echo ""
-            echo "Running bootstrap script..."
-            ./bootstrap.sh || { 
-                echo "Bootstrap script failed. Please check the output above for details."; 
-                exit 1; 
-            }
-            exit 0
+            # Continue to bootstrap section
+            SKIP_CLONE=true
+        else
+            # Not our repo, need to backup and clone
+            echo "  Creating backup at: $BACKUP_DIR"
+            mv "$CONFIG_DIR" "$BACKUP_DIR" || { echo "Failed to backup .config directory"; exit 1; }
+            echo "✓ Backup created successfully"
         fi
+    else
+        # Not a git repo, backup existing .config
+        echo "  Creating backup at: $BACKUP_DIR"
+        mv "$CONFIG_DIR" "$BACKUP_DIR" || { echo "Failed to backup .config directory"; exit 1; }
+        echo "✓ Backup created successfully"
     fi
-    
-    # Backup existing .config
-    echo "  Creating backup at: $BACKUP_DIR"
-    mv "$CONFIG_DIR" "$BACKUP_DIR" || { echo "Failed to backup .config directory"; exit 1; }
-    echo "✓ Backup created successfully"
 fi
 
-# Clone the repository
+# Clone the repository if needed
+if [ -z "$SKIP_CLONE" ]; then
+    echo ""
+    echo "Cloning repository to $CONFIG_DIR..."
+    git clone "$REPO_URL" "$CONFIG_DIR" || { 
+        echo "Failed to clone repository"
+        # Restore backup if clone fails
+        if [ -d "$BACKUP_DIR" ]; then
+            echo "Restoring backup..."
+            mv "$BACKUP_DIR" "$CONFIG_DIR"
+        fi
+        exit 1
+    }
+
+    echo "✓ Repository cloned successfully!"
+    echo ""
+    cd "$CONFIG_DIR" || { echo "Failed to change to $CONFIG_DIR"; exit 1; }
+fi
+
+# Bootstrap: Install dependencies and run playbook
+echo "============================================"
+echo "Setting up dependencies..."
+echo "============================================"
 echo ""
-echo "Cloning repository to $CONFIG_DIR..."
-git clone "$REPO_URL" "$CONFIG_DIR" || { 
-    echo "Failed to clone repository"
-    # Restore backup if clone fails
-    if [ -d "$BACKUP_DIR" ]; then
-        echo "Restoring backup..."
-        mv "$BACKUP_DIR" "$CONFIG_DIR"
+
+# Detect OS and distribution for bootstrap
+BOOTSTRAP_OS=$(uname -s)
+BOOTSTRAP_DISTRO=""
+
+if [ "$BOOTSTRAP_OS" = "Linux" ]; then
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        BOOTSTRAP_DISTRO=$ID
+    elif command -v lsb_release >/dev/null 2>&1; then
+        BOOTSTRAP_DISTRO=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
     fi
-    exit 1
-}
+fi
 
-echo "✓ Repository cloned successfully!"
+# Install Python3, pipx based on OS
+case $BOOTSTRAP_OS in
+    Linux)
+        case $BOOTSTRAP_DISTRO in
+            ubuntu|debian)
+                echo "Installing Python3 and pipx on Debian/Ubuntu..."
+                sudo apt update && sudo apt upgrade -y || { echo "Failed to update/upgrade apt"; exit 1; }
+                sudo apt install -y python3 python3-apt pipx || { echo "Failed to install python3 and pipx"; exit 1; }
+                ;;
+            fedora)
+                echo "Installing Python3 and pipx on Fedora..."
+                sudo dnf update -y || { echo "Failed to update/upgrade dnf"; exit 1; }
+                sudo dnf install -y python3 python3-pip pipx || { echo "Failed to install python3 and pipx"; exit 1; }
+                ;;
+            *)
+                echo "Unsupported Linux distribution: $BOOTSTRAP_DISTRO"
+                exit 1
+                ;;
+        esac
+        ;;
+    Darwin)
+        # macOS
+        echo "Installing Python3 and pipx on macOS..."
+        brew update || { echo "Failed to update brew"; exit 1; }
+        brew install python3 pipx || { echo "Failed to install python3 and pipx"; exit 1; }
+        ;;
+    *)
+        echo "Unsupported OS: $BOOTSTRAP_OS"
+        exit 1
+        ;;
+esac
+
+echo "✓ Dependencies installed successfully!"
 echo ""
 
-# Run bootstrap script
-echo "Running bootstrap script..."
-cd "$CONFIG_DIR"
-./bootstrap.sh || { 
-    echo "Bootstrap script failed. Please check the output above for details."; 
-    exit 1; 
-}
+# Source bashrc if it exists
+if [ -f "$CONFIG_DIR/.bashrc" ]; then
+    source "$CONFIG_DIR/.bashrc"
+fi
+
+# Ensure pipx path
+echo "Ensuring pipx is in PATH..."
+pipx ensurepath --force
+
+echo "✓ pipx path configured!"
+echo ""
+
+# Install Ansible
+echo "Installing Ansible..."
+pipx install --include-deps ansible || { echo "Failed to install ansible"; exit 1; }
+
+echo "✓ Ansible installed successfully!"
+echo ""
+
+# Add pipx bin directory to PATH for current shell
+export PATH="$HOME/.local/bin:$PATH"
+
+# Run Ansible playbook
+echo "============================================"
+echo "Running Ansible playbook..."
+echo "============================================"
+echo ""
+
+ansible-playbook "$CONFIG_DIR/playbook.yml" || { echo "Failed to run ansible playbook"; exit 1; }
+
+echo "✓ Ansible playbook completed successfully!"
+echo ""
 
 echo ""
 echo "============================================"
