@@ -49,18 +49,4 @@ pipx ensurepath --force
 
 pipx install --include-deps ansible || { echo "Failed to install ansible"; exit 1; }
 
-# Add a temporary NOPASSWD sudoers entry so Ansible can use become: true without prompting.
-# This is removed immediately after ansible-playbook finishes via the EXIT trap.
-SUDOERS_TEMP="/etc/sudoers.d/ansible-bootstrap-$(id -un)"
-echo "$(id -un) ALL=(ALL) NOPASSWD: ALL" | sudo tee "$SUDOERS_TEMP" > /dev/null
-sudo chmod 0440 "$SUDOERS_TEMP"
-
-cleanup_sudoers() {
-    if ! sudo rm -f "$SUDOERS_TEMP" 2>/dev/null; then
-        echo "WARNING: Failed to remove temporary sudoers file: $SUDOERS_TEMP" >&2
-        echo "WARNING: Please remove it manually: sudo rm -f $SUDOERS_TEMP" >&2
-    fi
-}
-trap cleanup_sudoers EXIT
-
-ansible-playbook playbook.yml || { echo "Failed to run ansible playbook"; exit 1; }
+ansible-playbook playbook.yml --ask-become-pass || { echo "Failed to run ansible playbook"; exit 1; }
