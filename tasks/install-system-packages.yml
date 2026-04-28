@@ -1,50 +1,52 @@
 ---
-- name: Install essential packages using Homebrew (macOS)
-  ansible.builtin.package:
+# Base system dependencies via native package manager
+- name: Install base dependencies
+  ansible.builtin.shell: >-
+    sudo {{ 'apt update && sudo apt install -y' if has_apt
+    else 'dnf install -y' if has_dnf
+    else 'yum install -y' }}
+    curl git wget gcc cmake unzip rsync python3-pip
+  when: has_apt or has_dnf or has_yum
+
+# Dev tools via Homebrew (all platforms)
+- name: Install dev tools via Homebrew (macOS)
+  community.general.homebrew:
     name:
-      - curl
-      - git
       - btop
-      - wget
-      - gcc
-      - cmake
       - fzf
-      - unzip
-      - rsync
       - ripgrep
       - luarocks
       - python
       - neovim
       - node
       - tmux
-      - gh
+      - go
+      - fd
+      - lazygit
+      - zoxide
+      - ni
     state: present
-  when: is_macos | default(false)
+  when: is_macos
 
-- name: Install essential packages using built-in package manager (Linux)
-  ansible.builtin.package:
+- name: Install dev tools via Homebrew (Linux)
+  community.general.homebrew:
     name:
-      - curl
-      - git
       - btop
-      - wget
-      - gcc
-      - cmake
       - fzf
-      - unzip
-      - rsync
       - ripgrep
       - luarocks
-      - python3-pip
       - neovim
-      - nodejs
+      - node
       - tmux
-      - gh
+      - go
+      - fd
+      - lazygit
+      - zoxide
+      - ni
     state: present
-    update_cache: true
-  become: true
-  when: not is_macos | default(false)
+  when: needs_brew
 
+# Rust toolchain
 - name: Check if rustup is installed
   ansible.builtin.command: rustup --version
   register: rustup_check
@@ -57,6 +59,13 @@
     executable: /bin/bash
   when: rustup_check.rc != 0
 
+# Luarocks packages
+- name: Check if luarocks is installed
+  ansible.builtin.command: which luarocks
+  register: luarocks_check
+  failed_when: false
+  changed_when: false
+
 - name: Check if tiktoken_core is installed
   ansible.builtin.shell: luarocks show tiktoken_core --local
   args:
@@ -64,11 +73,12 @@
   register: tiktoken_check
   failed_when: false
   changed_when: false
+  when: luarocks_check.rc == 0
 
 - name: Install tiktoken_core via luarocks
   ansible.builtin.shell: |
     . ~/.cargo/env
-    luarocks install tiktoken_core --local
+    luarocks --lua-version=5.1 --lua-dir=$(brew --prefix luajit) install tiktoken_core --local
   args:
     executable: /bin/bash
-  when: tiktoken_check.rc != 0
+  when: luarocks_check.rc == 0 and tiktoken_check.rc != 0

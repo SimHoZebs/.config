@@ -16,7 +16,7 @@ HISTCONTROL=ignoreboth
 if command -v shopt &> /dev/null; then
     shopt -s histappend
 fi
-PROMPT_COMMAND="history -a; history -n${PROMPT_COMMAND:+; ${PROMPT_COMMAND}}"
+PROMPT_COMMAND="history -a; history -n; ${PROMPT_COMMAND}"
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
 HISTSIZE=1000
@@ -201,3 +201,9 @@ elif [ -d "$HOME/platform-tools" ]; then
 fi
 export PATH="$HOME/go/bin:$PATH"
 export PATH="$HOME/.local/share/pnpm:$PATH"
+
+# Option+arrow word navigation
+if [[ -n "$ZSH_VERSION" ]]; then
+    bindkey '\e[1;3D' backward-word
+    bindkey '\e[1;3C' forward-word
+fi

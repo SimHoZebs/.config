@@ -2,6 +2,10 @@
 - name: Detect platform and package manager
   import_tasks: detect-platform.yml
 
+- name: Install Homebrew
+  import_tasks: install-tools/homebrew.yml
+  when: needs_brew
+
 - name: Install system packages
   import_tasks: install-system-packages.yml
 

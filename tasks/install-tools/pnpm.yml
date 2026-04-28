@@ -6,18 +6,18 @@
   failed_when: false
   changed_when: false
 
-- name: Install pnpm via Homebrew (ARM/macOS)
+- name: Install pnpm via Homebrew
   community.general.homebrew:
     name: pnpm
     state: present
-  when: pnpm_check.rc != 0 and needs_brew
+  when: pnpm_check.rc != 0 and has_brew
 
-- name: Install pnpm via standalone script (x86_64 Linux)
+- name: Install pnpm via standalone script (fallback)
   ansible.builtin.shell:
     cmd: curl -fsSL https://get.pnpm.io/install.sh | sh -
   args:
     executable: /bin/bash
-  when: pnpm_check.rc != 0 and not needs_brew
+  when: pnpm_check.rc != 0 and not has_brew
 
 - name: Add pnpm to PATH in .bashrc
   ansible.builtin.lineinfile:
@@ -25,4 +25,4 @@
     line: 'export PATH="$HOME/.local/share/pnpm:$PATH"'
     regexp: 'export PATH.*pnpm'
     state: present
-  when: not needs_brew
+  when: not has_brew

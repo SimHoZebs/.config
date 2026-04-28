@@ -26,6 +26,10 @@ case $OS in
                 sudo dnf update -y || { echo "Failed to update/upgrade dnf"; exit 1; }
                 sudo dnf install -y python3 python3-pip pipx || { echo "Failed to install python3 and pipx"; exit 1; }
                 ;;
+            amzn)
+                sudo yum install -y python3 python3-pip || { echo "Failed to install python3 and pip"; exit 1; }
+                python3 -m pip install --user pipx || { echo "Failed to install pipx"; exit 1; }
+                ;;
             *)
                 echo "Unsupported Linux distribution: $DISTRO"
                 exit 1
