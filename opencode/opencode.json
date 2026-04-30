@@ -4,10 +4,14 @@
     "edit": "ask",
     "bash": {
       "cat *": "allow",
-      "*": "ask",
       "ls *": "allow",
       "grep *": "allow",
+      "tail *": "allow",
+      "head *": "allow",
       "docker ps *": "allow",
+      "docker network ls *": "allow",
+      "docker inspect *": "allow",
+      "docker images *": "allow",
       "find *": "allow",
       "pwd": "allow",
       "git status": "allow",
@@ -23,8 +27,7 @@
       "pip list *": "allow",
       "npm list *": "allow",
       "go doc": "allow",
-      "docker inspect *": "allow",
-      "docker images *": "allow"
+      "rg *": "allow"
     }
   },
   "mcp": {
