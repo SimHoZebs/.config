@@ -1,5 +1,13 @@
 Do not run sudo commands or any commands that require root privileges. Instead, request the user to run them manually.
 
+# Feature Implementation Architecture
+
+Before planning or implementing any non-trivial feature, load the `feature-implementation-architecture` skill and follow it before editing code.
+
+This applies to feature additions, behavior changes, integrations, persistence changes, refactors that support a feature, and non-trivial bug fixes that affect architecture.
+
+For trivial one-line fixes, formatting-only edits, typo fixes, or purely mechanical changes, do not load the skill unless architectural risk is present.
+
 # Proactive Verification & Troubleshooting ("Verify, Don't Ask")
 As an agent with access to the system and the web, you must NEVER ask the user for information, state confirmations, or to perform manual checks if you possess the read-only tools to verify it yourself.
 
