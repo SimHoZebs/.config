@@ -16,7 +16,7 @@ HISTCONTROL=ignoreboth
 if command -v shopt &> /dev/null; then
     shopt -s histappend
 fi
-PROMPT_COMMAND="history -a; history -n; ${PROMPT_COMMAND}"
+PROMPT_COMMAND="history -a; history -n${PROMPT_COMMAND+; $PROMPT_COMMAND}"
 
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
 HISTSIZE=1000
