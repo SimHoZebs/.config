@@ -84,7 +84,7 @@ Use subagents in parallel where possible to speed up the scan. Each pass below t
 ## Pass 4: State Ownership
 
 - Trace global state usage: check for raw input drafts in global stores, derived values duplicated in state and manually synchronized, parent-owned state consumed by only one child.
-- Check for `useEffect` writing global state to mirror props.
+- Check for `useEffect` writing any state (global or local) to mirror props or derive values from props — prefer draft initialization on interaction or derivation during render.
 - Check for controlled component props without matching change callbacks, or uncontrolled components forced open/closed by reactive props after mount.
 
 ## Pass 5: Component Boundaries
@@ -169,6 +169,7 @@ Smells:
 - Broad store subscriptions that rerender large containers for child-only fields.
 - Controlled component props without matching change callbacks.
 - Uncontrolled components forced open/closed by changing props after mount.
+- `useEffect` synchronizing local form draft state from props — causes guaranteed extra render and can lose user input when props change externally.
 
 Better shapes:
 - Store committed domain/session settings globally; keep invalid drafts local to forms.
@@ -178,6 +179,7 @@ Better shapes:
 - Keep async projection, loading, progress, and runtime errors in hooks unless persistence/history is required.
 - Use focused snapshot actions that store only the payload needed for restore/compare/export.
 - Make component APIs clearly controlled (`value` plus `onChange`) or uncontrolled (`defaultValue`), not both ambiguously.
+- Initialize form drafts from props at interaction time (on focus/click), not via `useEffect`. Display committed prop values directly when not editing.
 
 Verification:
 - Typecheck catches prop/API changes.
@@ -315,12 +317,14 @@ Smells:
 - Large parent components subscribe to frequently changing child-only state.
 - Unstable arrays/objects passed into memoized children without reason.
 - Premature `useMemo`/`useCallback` everywhere without measured benefit.
+- `useEffect` used to derive component state from props or trigger state changes based on prop transitions — each such effect adds a guaranteed extra render cycle and may cause layout thrash.
 
 Better shapes:
 - Move heavy derivations into selectors, hooks, or memoized data builders with clear inputs.
 - Subscribe as close as practical to the rendering component.
 - Use framework/compiler conventions before adding manual memoization broadly.
 - Defer virtualization, code splitting, or caching until data size or profiling supports it.
+- Prefer deriving state during render for prop-to-state synchronization, using `useRef` to track previous prop values for detecting transitions, rather than `useEffect`.
 
 Verification:
 - Compare render scope or profiling before and after when performance is the stated goal.
