@@ -30,4 +30,4 @@
 
 # Exclude specific items within included directories
 tmux/plugins/
-opencode/notion-key
+opencode/*-key

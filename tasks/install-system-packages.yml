@@ -1,12 +1,19 @@
 ---
 # Base system dependencies via native package manager
 - name: Install base dependencies
-  ansible.builtin.shell: >-
-    sudo {{ 'apt update && sudo apt install -y' if has_apt
-    else 'dnf install -y' if has_dnf
-    else 'yum install -y' }}
-    curl git wget gcc cmake unzip rsync python3-pip
-  when: has_apt or has_dnf or has_yum
+  ansible.builtin.package:
+    name:
+      - curl
+      - git
+      - wget
+      - gcc
+      - cmake
+      - unzip
+      - rsync
+      - python3-pip
+    state: present
+    update_cache: true
+  become: true
 
 # Dev tools via Homebrew (all platforms)
 - name: Install dev tools via Homebrew (macOS)

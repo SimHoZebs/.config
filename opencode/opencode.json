@@ -51,6 +51,18 @@
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@latest", "--headless", "--config", "/home/simho/.config/opencode/playwright-mcp.json"],
       "enabled": true
+    },
+    "grafana": {
+      "type": "local",
+      "command": ["docker", "run", "-i", "--rm",
+        "-e", "GRAFANA_URL",
+        "-e", "GRAFANA_SERVICE_ACCOUNT_TOKEN",
+        "grafana/mcp-grafana", "-t", "stdio"],
+      "environment": {
+        "GRAFANA_URL": "https://grafana.home.simho.xyz",
+        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "{file:./grafana-key}"
+      },
+      "enabled": true
     }
   }
 }
