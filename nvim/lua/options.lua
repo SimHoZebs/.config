@@ -23,6 +23,42 @@ vim.opt.showmode = false
 --  See `:help 'clipboard'`
 vim.opt.clipboard = 'unnamedplus'
 
+local wayland_display = vim.env.WAYLAND_DISPLAY
+local wayland_socket = wayland_display
+  and (wayland_display:sub(1, 1) == '/' and wayland_display or (vim.env.XDG_RUNTIME_DIR or '') .. '/' .. wayland_display)
+local has_wayland_clipboard = wayland_socket
+  and vim.fn.getftype(wayland_socket) == 'socket'
+  and vim.fn.executable 'wl-copy' == 1
+  and vim.fn.executable 'wl-paste' == 1
+
+if has_wayland_clipboard then
+  vim.g.clipboard = {
+    name = 'wl-clipboard',
+    copy = {
+      ['+'] = 'wl-copy --type text/plain',
+      ['*'] = 'wl-copy --primary --type text/plain',
+    },
+    paste = {
+      ['+'] = 'wl-paste --no-newline',
+      ['*'] = 'wl-paste --primary --no-newline',
+    },
+    cache_enabled = 0,
+  }
+elseif vim.fn.executable 'win32yank.exe' == 1 then
+  vim.g.clipboard = {
+    name = 'win32yank-wsl',
+    copy = {
+      ['+'] = 'win32yank.exe -i --crlf',
+      ['*'] = 'win32yank.exe -i --crlf',
+    },
+    paste = {
+      ['+'] = 'win32yank.exe -o --lf',
+      ['*'] = 'win32yank.exe -o --lf',
+    },
+    cache_enabled = 0,
+  }
+end
+
 -- Enable break indent
 vim.opt.breakindent = true
 

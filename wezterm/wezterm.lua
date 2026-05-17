@@ -20,6 +20,8 @@ config.keys = {
 	{ key = "y", mods = "LEADER", action = wezterm.action.CopyTo("ClipboardAndPrimarySelection") },
 	{ key = "[", mods = "LEADER", action = wezterm.action.ActivateCopyMode },
 	{ key = "v", mods = "CTRL", action = wezterm.action.PasteFrom("Clipboard") },
+	{ key = "C", mods = "CTRL|SHIFT", action = wezterm.action.CopyTo("Clipboard") },
+	{ key = "V", mods = "CTRL|SHIFT", action = wezterm.action.PasteFrom("Clipboard") },
 
 	{ key = "V", mods = "LEADER", action = wezterm.action({ SplitVertical = { domain = "CurrentPaneDomain" } }) },
 	{ key = "v", mods = "LEADER", action = wezterm.action({ SplitHorizontal = { domain = "CurrentPaneDomain" } }) },
