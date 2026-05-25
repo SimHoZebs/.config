@@ -1,0 +1,43 @@
+---
+- name: Ensure Windows SSH directory exists
+  ansible.windows.win_file:
+    path: "{{ ansible_env.USERPROFILE }}\\.ssh"
+    state: directory
+
+- name: Generate GitHub SSH key on Windows if missing
+  ansible.windows.win_powershell:
+    script: |
+      $ErrorActionPreference = 'Stop'
+      $keyPath = Join-Path $env:USERPROFILE '.ssh\id_ed25519'
+      if (Test-Path $keyPath) {
+        Write-Output 'OK'
+        return
+      }
+
+      ssh-keygen.exe -t ed25519 -C 'github@simhozebs' -f $keyPath -N ''
+      if ($LASTEXITCODE -ne 0) {
+        throw "ssh-keygen failed with exit code $LASTEXITCODE"
+      }
+
+      Write-Output 'CHANGED'
+  register: windows_ssh_key
+  changed_when: "'CHANGED' in windows_ssh_key.output"
+
+- name: Configure Windows SSH for GitHub
+  ansible.windows.win_copy:
+    dest: "{{ ansible_env.USERPROFILE }}\\.ssh\\config"
+    content: |
+      Host github.com
+        HostName github.com
+        User git
+        IdentityFile ~/.ssh/id_ed25519
+        StrictHostKeyChecking accept-new
+
+- name: Read Windows GitHub public key
+  ansible.windows.win_command: powershell.exe -NoProfile -Command "Get-Content -Raw $env:USERPROFILE\.ssh\id_ed25519.pub"
+  register: windows_github_public_key
+  changed_when: false
+
+- name: Print Windows GitHub public key for manual GitHub addition
+  ansible.builtin.debug:
+    msg: "{{ windows_github_public_key.stdout | trim }}"

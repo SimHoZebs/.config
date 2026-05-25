@@ -1,0 +1,15 @@
+---
+- name: Check if Go is installed on Windows
+  ansible.windows.win_stat:
+    path: "{{ ansible_env['ProgramFiles'] }}\\Go\\bin\\go.exe"
+  register: windows_go
+
+- name: Check if gitmux is installed on Windows
+  ansible.windows.win_stat:
+    path: "{{ ansible_env.USERPROFILE }}\\go\\bin\\gitmux.exe"
+  register: windows_gitmux
+  when: windows_go.stat.exists
+
+- name: Install gitmux on Windows using go install
+  ansible.windows.win_command: '"{{ ansible_env[''ProgramFiles''] }}\\Go\\bin\\go.exe" install github.com/arl/gitmux@latest'
+  when: windows_go.stat.exists and not windows_gitmux.stat.exists

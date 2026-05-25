@@ -1,0 +1,188 @@
+---
+packages:
+  powershell:
+    name: PowerShell
+    winget: Microsoft.PowerShell
+
+  git:
+    name: Git
+    winget: Git.Git
+    brew: git
+    pacman: git
+    apt: git
+    dnf: git
+
+  wezterm:
+    name: WezTerm
+    winget: WezTerm.WezTerm
+    pacman: wezterm
+
+  neovim:
+    name: Neovim
+    winget: Neovim.Neovim
+    brew: neovim
+    pacman: neovim
+    apt: neovim
+    dnf: neovim
+
+  tailscale:
+    name: Tailscale
+    winget: Tailscale.Tailscale
+    pacman: tailscale
+
+  github-cli:
+    name: GitHub CLI
+    winget: GitHub.cli
+    brew: gh
+    pacman: github-cli
+    apt: gh
+    dnf: gh
+
+  rustup:
+    name: Rustup
+    winget: Rustlang.Rustup
+    pacman: rustup
+
+  go:
+    name: Go
+    winget: GoLang.Go
+    brew: go
+    pacman: go
+    apt: golang-go
+    dnf: golang
+
+  node:
+    name: Node.js
+    winget: OpenJS.NodeJS
+    brew: node
+    pacman: nodejs
+    apt: nodejs
+    dnf: nodejs
+
+  pnpm:
+    name: pnpm
+    winget: pnpm.pnpm
+    brew: pnpm
+    pacman: pnpm
+
+  python:
+    name: Python
+    winget: Python.Python.3.12
+    brew: python
+    pacman: python
+    apt: python3
+    dnf: python3
+
+  cmake:
+    name: CMake
+    winget: Kitware.CMake
+    brew: cmake
+    pacman: cmake
+    apt: cmake
+    dnf: cmake
+
+  zig:
+    name: Zig
+    winget: zig.zig
+    brew: zig
+    pacman: zig
+
+  fd:
+    name: fd
+    winget: sharkdp.fd
+    brew: fd
+    pacman: fd
+    apt: fd-find
+    dnf: fd-find
+
+  ripgrep:
+    name: ripgrep
+    winget: BurntSushi.ripgrep.MSVC
+    brew: ripgrep
+    pacman: ripgrep
+    apt: ripgrep
+    dnf: ripgrep
+
+  fzf:
+    name: fzf
+    winget: junegunn.fzf
+    brew: fzf
+    pacman: fzf
+    apt: fzf
+    dnf: fzf
+
+  zoxide:
+    name: zoxide
+    winget: ajeetdsouza.zoxide
+    brew: zoxide
+    pacman: zoxide
+
+  lazygit:
+    name: lazygit
+    winget: jesseduffield.lazygit
+    brew: lazygit
+    pacman: lazygit
+
+  unzip:
+    name: unzip
+    winget: GnuWin32.UnZip
+    pacman: unzip
+    apt: unzip
+    dnf: unzip
+
+  wget:
+    name: wget
+    winget: JernejSimoncic.Wget
+    pacman: wget
+    apt: wget
+    dnf: wget
+
+  curl:
+    name: curl
+    brew: curl
+    pacman: curl
+    apt: curl
+    dnf: curl
+
+  gcc:
+    name: gcc
+    pacman: gcc
+    apt: gcc
+    dnf: gcc
+
+  rsync:
+    name: rsync
+    pacman: rsync
+    apt: rsync
+    dnf: rsync
+
+  python3-pip:
+    name: Python pip
+    pacman: python-pip
+    apt: python3-pip
+    dnf: python3-pip
+
+  btop:
+    name: btop
+    brew: btop
+    pacman: btop
+    apt: btop
+    dnf: btop
+
+  luarocks:
+    name: LuaRocks
+    brew: luarocks
+    pacman: luarocks
+    apt: luarocks
+    dnf: luarocks
+
+  tmux:
+    name: tmux
+    brew: tmux
+    pacman: tmux
+    apt: tmux
+    dnf: tmux
+
+  ni:
+    name: ni
+    brew: ni

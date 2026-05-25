@@ -1,0 +1,25 @@
+---
+- name: Configure Windows Development Environment
+  hosts: windows
+  gather_facts: true
+  become: false
+  vars_files:
+    - vars/packages.yml
+  tasks:
+    - name: Install Windows system packages
+      ansible.builtin.include_tasks: tasks/install-system-packages-windows.yml
+
+    - name: Configure PowerShell profile
+      ansible.builtin.include_tasks: tasks/powershell-profile-windows.yml
+
+    - name: Configure Windows editor links
+      ansible.builtin.include_tasks: tasks/editor-config-windows.yml
+
+    - name: Configure Git
+      ansible.builtin.include_tasks: tasks/git-config-windows.yml
+
+    - name: Configure SSH
+      ansible.builtin.include_tasks: tasks/ssh-config-windows.yml
+
+    - name: Install Windows development tools
+      ansible.builtin.include_tasks: tasks/install-tools/main-windows.yml

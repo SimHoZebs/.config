@@ -1,0 +1,13 @@
+---
+- name: Set Git identity on Windows
+  ansible.windows.win_powershell:
+    script: |
+      $ErrorActionPreference = 'Stop'
+      $git = Get-Command git.exe -ErrorAction SilentlyContinue
+      if (-not $git) {
+        $git = Get-Item "$env:ProgramFiles\Git\cmd\git.exe" -ErrorAction Stop
+      }
+
+      & $git.Source config --global user.email 'simhozebs@gmail.com'
+      & $git.Source config --global user.name 'SimHoZebs'
+  changed_when: false

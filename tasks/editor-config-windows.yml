@@ -1,0 +1,36 @@
+---
+- name: Link Neovim config into LocalAppData
+  ansible.windows.win_powershell:
+    script: |
+      $ErrorActionPreference = 'Stop'
+      $source = Join-Path $env:USERPROFILE '.config\nvim'
+      $target = Join-Path $env:LOCALAPPDATA 'nvim'
+
+      if (-not (Test-Path $source)) {
+        throw "Neovim config source not found: $source"
+      }
+
+      if (Test-Path $target) {
+        $item = Get-Item $target -Force
+        if ($item.LinkType -eq 'Junction' -and $item.Target -eq $source) {
+          Write-Output 'OK'
+          return
+        }
+
+        throw "Refusing to replace existing Neovim config at $target"
+      }
+
+      New-Item -ItemType Junction -Path $target -Target $source | Out-Null
+      Write-Output 'CHANGED'
+  register: nvim_link
+  changed_when: "'CHANGED' in nvim_link.output"
+
+- name: Verify WezTerm config is available from repo location
+  ansible.windows.win_stat:
+    path: "{{ ansible_env.USERPROFILE }}\\.config\\wezterm\\wezterm.lua"
+  register: wezterm_config
+
+- name: Fail when WezTerm config is missing
+  ansible.builtin.fail:
+    msg: "WezTerm config not found at {{ ansible_env.USERPROFILE }}\\.config\\wezterm\\wezterm.lua"
+  when: not wezterm_config.stat.exists

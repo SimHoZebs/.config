@@ -1,0 +1,20 @@
+---
+- name: Ensure PowerShell profile directory exists
+  ansible.windows.win_file:
+    path: "{{ ansible_env.USERPROFILE }}\\Documents\\PowerShell"
+    state: directory
+
+- name: Manage PowerShell profile
+  ansible.windows.win_copy:
+    dest: "{{ ansible_env.USERPROFILE }}\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1"
+    content: |
+      Set-Alias -Name ll -Value Get-ChildItem -ErrorAction SilentlyContinue
+      Set-Alias -Name la -Value Get-ChildItem -ErrorAction SilentlyContinue
+      Set-Alias -Name l -Value Get-ChildItem -ErrorAction SilentlyContinue
+      Set-Alias -Name oc -Value opencode -ErrorAction SilentlyContinue
+
+      function lg { lazygit }
+
+      if (Get-Command zoxide -ErrorAction SilentlyContinue) {
+          Invoke-Expression (& { (zoxide init powershell --cmd cd | Out-String) })
+      }
