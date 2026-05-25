@@ -45,7 +45,7 @@ config.keys = {
 	{ key = "f", mods = "LEADER", action = wezterm.action.ToggleFullScreen },
 }
 
-config.font_size = 12
+config.font_size = 11
 config.warn_about_missing_glyphs = false
 config.window_decorations = "INTEGRATED_BUTTONS|RESIZE"
 config.tab_and_split_indices_are_zero_based = true
