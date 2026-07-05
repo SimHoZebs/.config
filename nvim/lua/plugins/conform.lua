@@ -34,7 +34,7 @@ return {
         typescriptreact = js,
         javascriptreact = js,
         json = js,
-        python = { 'black' },
+        python = { 'ruff_format' },
         astro = { 'prettierd' },
         java = { 'clang-format' },
         php = { 'pretty-php' },

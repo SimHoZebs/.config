@@ -188,7 +188,7 @@ return {
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format lua code
         'basedpyright',
-        'black',
+        'ruff',
         'biome',
         'gopls',
         'prettierd',
