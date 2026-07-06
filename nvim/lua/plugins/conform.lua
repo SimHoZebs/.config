@@ -35,6 +35,7 @@ return {
         javascriptreact = js,
         json = js,
         python = { 'ruff_format' },
+        markdown = { 'prettierd' },
         astro = { 'prettierd' },
         java = { 'clang-format' },
         php = { 'pretty-php' },
