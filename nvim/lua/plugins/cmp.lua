@@ -1,96 +1,48 @@
 return {
   { -- Autocompletion
-    'hrsh7th/nvim-cmp',
+    'saghen/blink.cmp',
     event = 'InsertEnter',
+    -- Release tag: pulls a prebuilt Rust fuzzy-matcher binary, so no local
+    -- toolchain is needed. Use '*' to track latest, but 1.* is stable.
+    version = '1.*',
     dependencies = {
-      -- Snippet Engine & its associated nvim-cmp source
-      {
-        'L3MON4D3/LuaSnip',
-        version = '*',
-        build = (function()
-          -- Build Step is needed for regex support in snippets
-          -- This step is not supported in many windows environments
-          -- Remove the below condition to re-enable on windows
-          if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
-            return
-          end
-          return 'make install_jsregexp'
-        end)(),
-      },
-      'saadparwaiz1/cmp_luasnip',
-
-      -- Adds other completion capabilities.
-      --  nvim-cmp does not ship with all sources by default. They are split
-      --  into multiple repos for maintenance purposes.
-      'hrsh7th/cmp-nvim-lsp',
-      'hrsh7th/cmp-path',
-
-      -- If you want to add a bunch of pre-configured snippets,
-      --    you can use this plugin to help you. It even has snippets
-      --    for various frameworks/libraries/etc. but you will have to
-      --    set up the ones that are useful for you.
-      -- 'rafamadriz/friendly-snippets',
+      -- Snippet engine. blink drives expansion/jumping through LuaSnip so the
+      -- friendly-snippets library keeps working. See friendly-snippets.lua.
+      'L3MON4D3/LuaSnip',
     },
-    config = function()
-      -- See `:help cmp`
-      local cmp = require 'cmp'
-      local luasnip = require 'luasnip'
-      luasnip.config.setup {}
-
-      cmp.setup {
-        snippet = {
-          expand = function(args)
-            luasnip.lsp_expand(args.body)
-          end,
-        },
-        completion = { completeopt = 'menu,menuone,noinsert' },
-
-        -- For an understanding of why these mappings were
-        -- chosen, you will need to read `:help ins-completion`
-        --
-        -- No, but seriously. Please read `:help ins-completion`, it is really good!
-        mapping = cmp.mapping.preset.insert {
-          -- Select the [n]ext item
-          ['<Tab>'] = cmp.mapping.select_next_item(),
-          -- Select the [p]revious item
-          ['<S-Tab>'] = cmp.mapping.select_prev_item(),
-
-          -- Accept ([y]es) the completion.
-          --  This will auto-import if your LSP supports it.
-          --  This will expand snippets if the LSP sent a snippet.
-          ['<CR>'] = cmp.mapping.confirm { select = true },
-
-          -- Manually trigger a completion from nvim-cmp.
-          --  Generally you don't need this, because nvim-cmp will display
-          --  completions whenever it has completion options available.
-          ['<C-Space>'] = cmp.mapping.complete {},
-
-          -- Think of <c-l> as moving to the right of your snippet expansion.
-          --  So if you have a snippet that's like:
-          --  function $name($args)
-          --    $body
-          --  end
-          --
-          -- <c-l> will move you to the right of each of the expansion locations.
-          -- <c-h> is similar, except moving you backwards.
-          ['<C-l>'] = cmp.mapping(function()
-            if luasnip.expand_or_locally_jumpable() then
-              luasnip.expand_or_jump()
-            end
-          end, { 'i', 's' }),
-          ['<C-h>'] = cmp.mapping(function()
-            if luasnip.locally_jumpable(-1) then
-              luasnip.jump(-1)
-            end
-          end, { 'i', 's' }),
-        },
-        sources = {
-          { name = 'nvim_lsp' },
-          { name = 'luasnip' },
-          { name = 'path' },
-        },
-      }
-    end,
+    ---@module 'blink.cmp'
+    ---@type blink.cmp.Config
+    opts = {
+      -- Keymaps carried over from the old nvim-cmp setup. `'fallback'` means:
+      -- run the key's normal behavior when the completion menu isn't open.
+      keymap = {
+        preset = 'none',
+        -- Select the [n]ext / [p]revious item.
+        ['<Tab>'] = { 'select_next', 'fallback' },
+        ['<S-Tab>'] = { 'select_prev', 'fallback' },
+        -- Accept the completion (auto-imports / expands snippets when the LSP sends them).
+        ['<CR>'] = { 'accept', 'fallback' },
+        -- Manually trigger completion.
+        ['<C-Space>'] = { 'show', 'fallback' },
+        -- Jump forward/back through snippet placeholders (was LuaSnip <C-l>/<C-h>).
+        ['<C-l>'] = { 'snippet_forward', 'fallback' },
+        ['<C-h>'] = { 'snippet_backward', 'fallback' },
+      },
+      completion = {
+        -- 'noinsert' parity: highlight the first item but don't insert its text
+        -- until it's explicitly accepted with <CR>.
+        list = { selection = { preselect = true, auto_insert = false } },
+        -- The old setup surfaced LSP docs in the menu; keep that behavior.
+        documentation = { auto_show = true, auto_show_delay_ms = 200 },
+      },
+      snippets = { preset = 'luasnip' },
+      sources = {
+        -- Was { nvim_lsp, luasnip, path }. blink's 'snippets' source reads from
+        -- LuaSnip because of the preset above.
+        default = { 'lsp', 'snippets', 'path' },
+      },
+      fuzzy = { implementation = 'prefer_rust_with_warning' },
+    },
   },
 }
 -- vim: ts=2 sts=2 sw=2 et
