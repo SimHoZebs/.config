@@ -25,6 +25,7 @@
       - luarocks
       - python
       - neovim
+      - tree-sitter-cli
       - node
       - tmux
       - go
@@ -43,6 +44,7 @@
       - ripgrep
       - luarocks
       - neovim
+      - tree-sitter-cli
       - node
       - tmux
       - go
