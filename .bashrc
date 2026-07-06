@@ -8,19 +8,23 @@ case $- in
       *) return;;
 esac
 
-# don't put duplicate lines or lines starting with space in the history.
-# See bash(1) for more options
-HISTCONTROL=ignoreboth
-
-# append to the history file, don't overwrite it
-if command -v shopt &> /dev/null; then
-    shopt -s histappend
-fi
-PROMPT_COMMAND="history -a; history -n${PROMPT_COMMAND+; $PROMPT_COMMAND}"
-
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
 HISTSIZE=1000
-HISTFILESIZE=2000
+if [[ -n "$BASH_VERSION" ]]; then
+    HISTCONTROL=ignoreboth
+    HISTFILESIZE=2000
+    if command -v shopt &> /dev/null; then
+        shopt -s histappend
+    fi
+    PROMPT_COMMAND="history -a; history -n${PROMPT_COMMAND+; $PROMPT_COMMAND}"
+elif [[ -n "$ZSH_VERSION" ]]; then
+    HISTFILE=~/.zsh_history
+    SAVEHIST=2000
+    setopt APPEND_HISTORY
+    setopt SHARE_HISTORY
+    setopt HIST_IGNORE_DUPS
+    setopt HIST_IGNORE_SPACE
+fi
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
@@ -98,6 +102,10 @@ if [ -x /usr/bin/dircolors ]; then
     #alias grep='grep --color=auto'
     #alias fgrep='fgrep --color=auto'
     #alias egrep='egrep --color=auto'
+else
+    # macOS BSD ls uses CLICOLOR instead of --color=auto
+    export CLICOLOR=1
+    export LSCOLORS=GxFxCxDxBxegedabagaced
 fi
 
 # colored GCC warnings and errors
