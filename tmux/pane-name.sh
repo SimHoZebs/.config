@@ -16,6 +16,14 @@ DECOR=5       # per-window decoration catppuccin adds (index + separators + spac
 JOIN=3        # width of the " | " separator between two panes in one window
 FALLBACK=40   # per-pane budget when the screen can't be measured
 
+# Status markers prepended to a Claude pane's name. Change these two to taste.
+# MUST be single-codepoint glyphs: bash ${#nm} (char count) must equal the column
+# count tmux lays out, or the water-fill budget below drifts by the difference.
+# Plain emoji satisfy this (measured 1 char == 1 tmux col in 3.6b); avoid the
+# variation-selector forms like "✳️" (base + U+FE0F) which count as 2 in both.
+WORK_MARK='🔄'   # Claude is processing
+DONE_MARK='✅'   # Claude finished / is awaiting input
+
 # Strip a leading status glyph (Claude Code prefixes its OSC title with
 # "✳ " when idle or a braille spinner when working) and trailing space.
 clean_title() {
@@ -23,11 +31,22 @@ clean_title() {
 }
 
 resolve_name() {
-  local cmd="$1" title="$2" clean
+  local cmd="$1" title="$2" clean lead status="" name
   clean=$(clean_title "$title")
+  # A leading glyph was stripped ⇒ this is Claude. Read the raw title's first two
+  # UTF-8 bytes to tell working from idle: the animated spinner lives in the
+  # braille block U+2800–U+28FF (E2 A0–A3 xx); ✳ and anything else means idle/done.
+  if [ "$clean" != "$title" ]; then
+    lead=$(printf '%s' "$title" | od -An -tx1 -N2 | tr -d ' \n')
+    case "$lead" in
+      e2a0|e2a1|e2a2|e2a3) status="$WORK_MARK" ;;
+      *)                   status="$DONE_MARK" ;;
+    esac
+  fi
   # A Claude pane runs `claude` directly, or had a glyph stripped above.
   if [ "$cmd" = "claude" ] || [ "$clean" != "$title" ]; then
-    [ -n "$clean" ] && echo "$clean" || echo "claude"
+    [ -n "$clean" ] && name="$clean" || name="claude"
+    [ -n "$status" ] && printf '%s %s' "$status" "$name" || printf '%s' "$name"
     return
   fi
   echo "$cmd"
