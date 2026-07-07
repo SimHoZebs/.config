@@ -1,6 +1,7 @@
 return {
   'folke/flash.nvim',
-  event = 'VeryLazy',
+  -- keys alone lazy-loads on first use; the VeryLazy event forced it eager and
+  -- defeated that, so it's dropped.
   opts = {},
   keys = {
     { '<leader>j', mode = { 'n', 'x', 'o' }, function() require('flash').jump() end, desc = 'Flash [J]ump' },

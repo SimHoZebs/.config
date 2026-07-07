@@ -9,7 +9,15 @@
 return {
   -- NOTE: Yes, you can install new plugins here!
   'mfussenegger/nvim-dap',
-  event = 'VeryLazy',
+  -- keys (not VeryLazy): dap drags in mason + dap-ui + dap-go + nio, none of
+  -- which are worth loading on every startup. Load on the debug entry points;
+  -- config then installs the full F-key/<leader>b map set.
+  keys = {
+    { '<F5>', desc = 'Debug: Start/Continue' },
+    { '<F7>', desc = 'Debug: See last session result' },
+    { '<leader>b', desc = 'Debug: Toggle Breakpoint' },
+    { '<leader>B', desc = 'Debug: Set Breakpoint' },
+  },
   -- NOTE: And you can specify dependencies as well
   dependencies = {
     -- Creates a beautiful debugger UI

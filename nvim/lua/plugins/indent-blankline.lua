@@ -1,5 +1,7 @@
 return {
   'lukas-reineke/indent-blankline.nvim',
+  -- Visual-only, needs a buffer; no reason to load before a file opens.
+  event = { 'BufReadPost', 'BufNewFile' },
   main = 'ibl',
   opts = {},
   config = function()

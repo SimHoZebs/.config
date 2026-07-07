@@ -1,6 +1,10 @@
 return {
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
+    -- No LSP is needed until an actual file is open; loading at startup just
+    -- delays the first frame. FileType would also work but this covers all
+    -- buffers uniformly.
+    event = { 'BufReadPre', 'BufNewFile' },
     version = '*',
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for neovim

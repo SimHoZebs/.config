@@ -13,6 +13,8 @@ return {
   {
     'stevearc/conform.nvim',
     version = '*',
+    -- VeryLazy (not BufWritePre): the <leader>ff/<leader>ft maps are registered
+    -- in config, so deferring to first-write would leave them dead until a save.
     event = 'VeryLazy',
     opts = {
       notify_on_error = true,

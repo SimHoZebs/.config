@@ -1,6 +1,8 @@
 return {
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
+    -- Only mini.ai (textobjects) is used now; not needed before UI is up.
+    event = 'VeryLazy',
     config = function()
       -- Better Around/Inside textobjects
       --

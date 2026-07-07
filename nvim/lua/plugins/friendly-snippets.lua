@@ -1,5 +1,7 @@
 return {
   'L3MON4D3/LuaSnip',
+  -- blink.cmp (InsertEnter) pulls this in; no need to load it at startup.
+  lazy = true,
   dependencies = { 'rafamadriz/friendly-snippets' },
   config = function()
     -- Register the friendly-snippets library into LuaSnip. blink.cmp's

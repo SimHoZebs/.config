@@ -8,7 +8,10 @@
 return {
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
-    event = 'VeryLazy',
+    -- Eager, not VeryLazy: VeryLazy already fires ~immediately after UI paint,
+    -- so the delay felt on the first <leader>sf was fzf-native + picker init,
+    -- not the lazy trigger. Load up front so pickers are warm at first keypress.
+    lazy = false,
     version = '*',
     dependencies = {
       'nvim-lua/plenary.nvim',
