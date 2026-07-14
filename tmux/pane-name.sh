@@ -31,7 +31,7 @@ clean_title() {
 }
 
 resolve_name() {
-  local cmd="$1" title="$2" clean lead status="" name
+  local cmd="$1" title="$2" path="$3" clean lead status="" name
   clean=$(clean_title "$title")
   # A leading glyph was stripped ⇒ this is Claude. Read the raw title's first two
   # UTF-8 bytes to tell working from idle: the animated spinner lives in the
@@ -47,6 +47,23 @@ resolve_name() {
   if [ "$cmd" = "claude" ] || [ "$clean" != "$title" ]; then
     [ -n "$clean" ] && name="$clean" || name="claude"
     [ -n "$status" ] && printf '%s %s' "$status" "$name" || printf '%s' "$name"
+    return
+  fi
+  if [ "$cmd" = "lazygit" ] || [ "$cmd" = "nvim" ]; then
+    local repo short="$cmd"
+    [ "$cmd" = "lazygit" ] && short="lg"
+    repo=$(basename "$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$path")")
+    printf '%s: %s' "$short" "$repo"
+    return
+  fi
+  if [ "$cmd" = "opencode" ]; then
+    local msg
+    msg=${title#OC \| }
+    if [ -n "$msg" ] && [ "$msg" != "$title" ]; then
+      printf 'oc: %s' "$msg"
+    else
+      echo "oc"
+    fi
     return
   fi
   echo "$cmd"
@@ -117,13 +134,22 @@ cpath=$(tmux display-message -p -t "$sess" '#{pane_current_path}' 2>/dev/null)
 
 # 1. Gather every pane in the session (one call): window_id, command, title.
 fwin=(); fname=()
-while IFS="$sep" read -r wid cmd title; do
+while IFS="$sep" read -r wid cmd title path; do
   [ -z "$wid" ] && continue
-  fwin+=("$wid"); fname+=("$(resolve_name "$cmd" "$title")")
-done < <(tmux list-panes -s -t "$sess" -F "#{window_id}${sep}#{pane_current_command}${sep}#{pane_title}" 2>/dev/null)
+  fwin+=("$wid"); fname+=("$(resolve_name "$cmd" "$title" "$path")")
+done < <(tmux list-panes -s -t "$sess" -F "#{window_id}${sep}#{pane_current_command}${sep}#{pane_title}${sep}#{pane_current_path}" 2>/dev/null)
 
 ntotal=${#fname[@]}
 [ "$ntotal" -eq 0 ] && exit 0
+
+# Active window collapses to just its index; zero its panes' names so the
+# water-fill gives them no space, freeing it for other windows.
+active_win=$(tmux display-message -p -t "$sess" '#{window_id}' 2>/dev/null)
+if [ -n "$active_win" ]; then
+  for ((i=0; i<ntotal; i++)); do
+    [ "${fwin[i]}" = "$active_win" ] && fname[i]=""
+  done
+fi
 
 # 2. Decide the per-pane character caps.
 caps_ready=0
@@ -151,6 +177,12 @@ if [ -n "$cw" ] && [ "$cw" -gt 0 ] 2>/dev/null; then
 fi
 
 # 3. Emit only the target window's panes, joined, each truncated to its cap.
+# Active window shows just its index; emit directly and skip the pane-join loop.
+if [ "$window_id" = "$active_win" ]; then
+  tmux display-message -p -t "$window_id" '#{window_index}' 2>/dev/null
+  exit 0
+fi
+
 result=""
 for ((i=0; i<ntotal; i++)); do
   [ "${fwin[i]}" = "$window_id" ] || continue
