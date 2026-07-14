@@ -33,7 +33,18 @@ return {
             end,
           },
         },
-        lualine_b = { 'diff', 'diagnostics' },
+        lualine_b = {
+          {
+            function()
+              local root = vim.fs.root(0, '.git')
+              return root and vim.fs.basename(root) or ''
+            end,
+            icon = '',
+          },
+          'branch',
+          'diff',
+          'diagnostics',
+        },
         lualine_c = {
           {
             'filename',
@@ -41,6 +52,7 @@ return {
             path = 1,
           },
         },
+        lualine_x = {},
         lualine_y = {},
       },
     }
