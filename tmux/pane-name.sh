@@ -142,15 +142,6 @@ done < <(tmux list-panes -s -t "$sess" -F "#{window_id}${sep}#{pane_current_comm
 ntotal=${#fname[@]}
 [ "$ntotal" -eq 0 ] && exit 0
 
-# Active window collapses to just its index; zero its panes' names so the
-# water-fill gives them no space, freeing it for other windows.
-active_win=$(tmux display-message -p -t "$sess" '#{window_id}' 2>/dev/null)
-if [ -n "$active_win" ]; then
-  for ((i=0; i<ntotal; i++)); do
-    [ "${fwin[i]}" = "$active_win" ] && fname[i]=""
-  done
-fi
-
 # 2. Decide the per-pane character caps.
 caps_ready=0
 if [ -n "$cw" ] && [ "$cw" -gt 0 ] 2>/dev/null; then
@@ -177,12 +168,6 @@ if [ -n "$cw" ] && [ "$cw" -gt 0 ] 2>/dev/null; then
 fi
 
 # 3. Emit only the target window's panes, joined, each truncated to its cap.
-# Active window shows just its index; emit directly and skip the pane-join loop.
-if [ "$window_id" = "$active_win" ]; then
-  tmux display-message -p -t "$window_id" '#{window_index}' 2>/dev/null
-  exit 0
-fi
-
 result=""
 for ((i=0; i<ntotal; i++)); do
   [ "${fwin[i]}" = "$window_id" ] || continue
