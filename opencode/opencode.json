@@ -7,6 +7,11 @@
     "list": "allow",
     "webfetch": "allow",
     "websearch": "allow",
+    "task": {
+      "*": "ask",
+      "plan-reviewer": "allow",
+      "code-change-reviewer": "allow"
+    },
     "skill": {
       "*": "allow"
     },

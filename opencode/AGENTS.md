@@ -15,3 +15,22 @@ As an agent with access to the system and the web, you must NEVER ask the user f
 
 4. **Minimize User Burden:**
    - Treat the user as a supervisor, not a debugger. Before sending *any* response asking the user a question, stop and ask yourself: "Can I find the answer to this question myself using a read-only command, file read, or web search?" If yes, use the tool.
+
+# Independent Review Gates
+
+Primary agents must use independent adversarial review for meaningful work. These are decision-support gates, not transfers of authority.
+
+1. **Plan Review:**
+   - After producing a non-trivial implementation plan and before editing, invoke `plan-reviewer` with the original intent, acceptance criteria, proposed plan, constraints, non-goals, relevant paths, and unresolved assumptions.
+   - Skip this gate for small mechanical edits, formatting or documentation corrections, and obvious one-line fixes with no contract or behavioral impact.
+
+2. **Code Review:**
+   - After meaningful local changes and before declaring completion, invoke `code-change-reviewer` with the original task, acceptance criteria, intended behavior, diff scope, constraints, and intentional compromises.
+   - Skip this gate when there are no file changes or the change is a trivial text-only correction.
+
+3. **Evaluate Feedback:**
+   - Treat reviewer output as evidence, not authority. Verify every finding against the actual project before accepting or rejecting it.
+   - Apply valid corrections, then rerun a reviewer only when a material correction invalidated the original review. Do not create an open-ended debate loop.
+   - Run normal completion verification after code review; review does not replace tests, builds, linting, or runtime checks.
+
+The `plan-reviewer` and `code-change-reviewer` subagents do not invoke these gates themselves.
