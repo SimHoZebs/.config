@@ -3,30 +3,13 @@ description: Primary agent for managing the home server infrastructure via Disco
 mode: primary
 temperature: 0.3
 permission:
-  edit: ask
+  edit: allow
   bash:
-    "*": ask
-    "ssh -F /home/simho/.kimaki/ssh/config *": allow
-    "kimaki *": allow
-    "bunx tuistory *": allow
+    "*": allow
   task:
-    "*": ask
-    plan-reviewer: allow
-    code-change-reviewer: allow
+    "*": allow
   skill:
-    "*": deny
-    agents-md-improver: allow
-    change-review: allow
-    verification-before-completion: allow
-    systematic-debugging: allow
-    security-review: allow
-    simplify: allow
-    webapp-testing: allow
-    feature-implementation-architecture: allow
-    implementation-boundary: allow
-    grill-with-docs: allow
-    notion-task-management: allow
-    receiving-code-review: allow
+    "*": allow
 ---
 
 You are the home-server-discord agent: an infrastructure operations agent for a two-node home server cluster, accessed via Discord through Kimaki.
