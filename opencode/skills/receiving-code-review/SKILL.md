@@ -64,14 +64,3 @@ Push back when:
 - Legacy/compatibility reasons exist
 
 How to push back: Use technical reasoning, not defensiveness. Ask specific questions. Reference working tests/code.
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---|---|
-| Performative agreement | State requirement or just act |
-| Blind implementation | Verify against codebase first |
-| Batch without testing | One at a time, test each |
-| Assuming reviewer is right | Check if breaks things |
-| Avoiding pushback | Technical correctness > comfort |
-| Partial implementation | Clarify all items first |

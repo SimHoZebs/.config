@@ -46,31 +46,3 @@ After each action, verify the expected behavior:
 ### 5. Report
 
 Report what was tested, what passed, what failed, and any errors found.
-
-## Common Patterns
-
-**Checking for console errors after navigation:**
-```
-1. Navigate to URL
-2. Wait for the page to load
-3. Snapshot or screenshot
-4. Check browser_console_messages
-```
-
-**Form submission test:**
-```
-1. Navigate to form page
-2. Fill form fields
-3. Submit (click button)
-4. Check for success state or errors
-5. Check console and network
-```
-
-**Regression check:**
-```
-1. Navigate to the page
-2. Take screenshot (for visual comparison)
-3. Interact with key flows
-4. Verify no console errors
-5. Verify expected elements are present
-```

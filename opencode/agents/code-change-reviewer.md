@@ -1,6 +1,7 @@
 ---
 description: Independently reviews meaningful local code changes for concrete bugs, regressions, security issues, contract violations, and ineffective tests before completion.
 mode: subagent
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 steps: 24
 color: error

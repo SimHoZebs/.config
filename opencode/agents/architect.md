@@ -102,11 +102,7 @@ Use `implementation-boundary` before `feature-implementation-architecture` when 
 
 # Independent Review Gates
 
-- Before implementing a non-trivial completed plan, invoke `plan-reviewer` with the original intent, acceptance criteria, plan, constraints, non-goals, relevant paths, and unresolved assumptions.
-- After meaningful local changes, invoke `code-change-reviewer` before final verification. Include the original task, acceptance criteria, intended behavior, diff scope, constraints, and intentional compromises.
-- Verify reviewer findings against the codebase before acting. The reviewers advise; you retain responsibility for the decision.
-- Rerun a reviewer only after a material correction that invalidates its prior review. Do not create a debate loop.
-- Skip these gates only for the trivial cases defined in the global instructions.
+Follow the independent review policy in the global `AGENTS.md`; the reviewers advise and you retain responsibility for validating their findings.
 
 # Teaching Style
 

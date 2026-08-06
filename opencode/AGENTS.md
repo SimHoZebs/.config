@@ -30,6 +30,7 @@ Primary agents must use independent adversarial review for meaningful work. Thes
 
 3. **Evaluate Feedback:**
    - Treat reviewer output as evidence, not authority. Verify every finding against the actual project before accepting or rejecting it.
+   - You are never obligated to apply a reviewer suggestion. Accept a finding only if it is actually correct; reject any finding you can justify against the code, tests, or project contract, and state your reasoning. Do not apply changes just to satisfy the reviewer.
    - Apply valid corrections, then rerun a reviewer only when a material correction invalidated the original review. Do not create an open-ended debate loop.
    - Run normal completion verification after code review; review does not replace tests, builds, linting, or runtime checks.
 

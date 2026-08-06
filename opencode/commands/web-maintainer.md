@@ -27,7 +27,7 @@ Default to reporting findings and recommendations. If the user asks you to imple
 
 - Read actual files before making claims.
 - Prefer `glob`, `grep`, and file reads for codebase inspection.
-- Use read-only shell commands only when they add value, such as `git status`, `git diff`, `git log`, `npm run typecheck`, `npm run test`, or `npm run build`.
+- Inspect package scripts and tool availability before running commands. Use locally available tools only; do not use `npx` or install missing dependencies. Tests, builds, and analyzers may write artifacts, so run them only when their side effects are known and acceptable for an audit, then check `git status` afterward and report any changes.
 - You may delegate focused inspection work to existing subagents when it improves coverage. Use read-only exploration/research subagents only, and instruct them not to edit files.
 - Do not modify files, write patches, create commits, or alter configuration.
 - Separate correctness risks from maintainability suggestions.
@@ -46,7 +46,7 @@ Use subagents in parallel where possible to speed up the scan. Each pass below t
 
 ## Pass 1: Structural Inventory
 
-- List the full source tree. Note file counts, line counts, and any empty directories.
+- List the full source tree. Note file counts and any empty directories. Flag files over ~300 lines — line count is a *trigger to inspect*, not an indicator of a problem. Examine flagged files for mixed responsibilities, not raw length.
 - Check for generated artifacts outside known artifact directories: screenshots, console/log dumps, viewport JSON, page snapshots, debug markdown files.
 - Check for misplaced files: non-component code under `components/`, data adapters or parse utilities mixed with React components, tests far from the subsystem they exercise.
 - Check for orphaned barrel files, stale imports, or broken path aliases.
@@ -55,36 +55,64 @@ Use subagents in parallel where possible to speed up the scan. Each pass below t
 
 ## Pass 2: Type Safety
 
-- Search all source files for `as` type assertions, `!` non-null assertions, and `any` usage.
-- Classify each cast as boundary-necessary (worker `event.data`, `Object.entries`, CSV parsing) or suspicious (domain logic, component rendering).
-- Report the count, concentration, and whether casts are isolated at boundary layers.
-- Check for runtime type-check functions duplicated across components instead of centralized in parse/validation code.
+- Apply the `Type Safety And Boundary Casting` catalog checklist. Classify assertions as boundary-necessary or suspicious, and report their count and concentration.
 
 ## Pass 3: SRP/DRY
 
-- Search for duplicated lifecycle patterns: hooks or modules with identical Worker/bookkeeping logic, identical components with different titles, repeated formatters/mappers.
-- Search for oversized components that mix orchestration, data derivation, charts, forms, tables, alerts, and independent UI state.
-- Check for over-generalized abstractions where one mega-parameterized hook covers too many behaviors.
-- Check for duplicated JSX disclosure/card/table shells across components.
-- Check for utility functions that do the same thing under different names.
+- Apply the `DRY, SRP, And Shared Foundations` catalog checklist. Inspect lifecycle duplication, mixed responsibilities, repeated UI shells, utility overlap, and over-generalized abstractions.
 
 ## Pass 4: State Ownership
 
-- Trace global state usage: check for raw input drafts in global stores, derived values duplicated in state and manually synchronized, parent-owned state consumed by only one child.
-- Check for `useEffect` writing any state (global or local) to mirror props or derive values from props — prefer draft initialization on interaction or derivation during render.
-- Check for controlled component props without matching change callbacks, or uncontrolled components forced open/closed by reactive props after mount.
+- Apply the `State Boundary Maintenance` and `Data Flow And Store Surface Maintenance` catalog checklists. Trace state ownership, derived-state synchronization, controlled APIs, and multi-field transitions.
 
 ## Pass 5: Component Boundaries
 
-- Check for components that import global stores directly when props would make ownership clearer.
-- Check for the same summary/disclosure/badge pattern repeated across components without a shared presentational shell.
-- Check for helpers extracted before they have multiple consumers.
+- Apply the `Component Boundary Maintenance` catalog checklist. Inspect direct store imports, repeated presentational shells, and premature helper extraction.
 
 ## Pass 6: Hygiene Check
 
-- Run `npm run typecheck`, `npm run test`, and `npm run build` (or project-equivalent commands).
+- Run project-equivalent typecheck, test, and build commands only when script inspection shows their side effects are known and acceptable for an audit; otherwise report them as not run.
 - Check `git status` for uncommitted generated artifacts, secrets, or debug files.
 - Report any failing commands clearly.
+
+## Pass 7: Test Infrastructure
+
+- **Configuration**: Scan test config (vitest/jest config, setup files, global mocks, `tsconfig.test.json`) for unused setup, stale paths, or overly broad global mocks that obscure real coverage gaps.
+- **Test structure**: Check whether tests follow a consistent naming convention (`.test.ts`, `.spec.ts`, `__tests__/`), whether e2e/integration/unit tests live in expected directories, and whether barrel files or index imports are used for test exports.
+- **Fixtures and helpers**: Look for duplicated test utilities (identical factories, mock builders, render wrappers) across test files. Flag shared helpers buried inside `__tests__/` instead of a `__fixtures__/` or `test-utils/` module.
+- **Mock quality**: Search for overly broad module mocks, mocks that drift out of sync with the real module, mock factories that erase meaningful behavior, and `vi.mock` calls at the top of files that disable imports needed by other tests in the same file.
+- **Edge-case coverage**: Check that data-loading, empty-state, error, and null-input cases are present alongside happy-path tests. For components, check that both controlled and uncontrolled variants are exercised.
+- **Flakiness signals**: Search for `setTimeout`, `waitFor(`, bare `Promise.resolve` without `vi.advanceTimers`, real timers without `vi.useFakeTimers`, tests depending on exact elapsed time, and network calls that are not faked.
+- **Performance**: Search for slow test patterns — redundant full-page renders, repeated vi.mock/unmock cycles, tests that re-initialize the same store before every case, and high fixture setup overhead that could use `beforeAll` instead of `beforeEach`.
+- **CI wiring**: Verify the project has a CI config (`.github/workflows/`, `.gitlab-ci.yml`, etc.) and that the test/typecheck/lint commands match what `npm run test` etc. actually run. Flag missing CI, missing lint-stage or pre-commit hooks, and test commands that bypass lint or typecheck.
+
+## Pass 8: Dependency Hygiene
+
+- Apply the `Dependency Hygiene` catalog checklist. Use locally available tooling only; inspect lockfiles and package metadata for drift, unused or duplicated dependencies, outdated versions, dev/prod separation, and peer warnings.
+
+## Pass 9: Error Handling & Debug Artifacts
+
+- Apply the `Error Handling & Debug Artifacts` catalog checklist. Inspect error paths, rejected promises, boundaries, production debug output, commented code, and TODO density.
+
+## Pass 10: CSS / Styling Hygiene
+
+- Apply the `CSS / Styling Hygiene` catalog checklist. Inspect dead styles, inline and hardcoded values, runtime style creation, class bloat, and color-only status indicators.
+
+## Pass 11: Configuration & Build Sprawl
+
+- Apply the `Configuration & Build Sprawl` catalog checklist. Inspect stale or duplicated config, tracked build output, environment coverage, project references, and bundler drift.
+
+## Pass 12: Accessibility
+
+- Apply the `Accessibility` catalog checklist. Inspect image text, semantic interaction, focus, labels, announcements, and color-only status indicators.
+
+## Pass 13: Frontend Security
+
+- Apply the `Frontend Security` catalog checklist. Inspect HTML injection, URL validation, message origins, client secrets, external scripts, and CSP/CORS.
+
+## Pass 14: Bundle & Build Output
+
+- Apply the `Bundle & Build Output` catalog checklist. Inspect chunk sizes, polyfills, tree-shaking, duplicate singletons, code splitting, and source maps. Use existing local analyzers only; do not install tools or create analysis artifacts during the audit.
 
 # After The Scan
 
@@ -357,7 +385,7 @@ Smells:
 
 Better shapes:
 
-- Run available typecheck, tests, and build commands.
+- Run approved, side-effect-checked typecheck, test, and build commands.
 - Review `git diff --check`, `git status`, and relevant diffs.
 - Search for old imports/paths after reorganizations.
 - Report unverified areas and residual risks honestly.
@@ -366,3 +394,186 @@ Verification:
 
 - All relevant commands pass, or failures are clearly explained.
 - No unrelated files are included in recommended changes.
+
+## Dependency Hygiene
+
+Smells:
+
+- Lockfile not committed or out of sync with `package.json`.
+- Dependencies listed in `package.json` that are never imported in source code.
+- Multiple versions of the same package in the lockfile without a concrete reason.
+- Packages with known vulnerabilities or major versions behind latest.
+- Build-only tools (testing, linting, bundler plugins) in `dependencies` instead of `devDependencies`.
+- Unmet peer dependency warnings in `npm ls` output.
+
+Better shapes:
+
+- Lockfile is committed and regenerated after every `package.json` change.
+- Run `depcheck` or a dead-import scan periodically; remove unused deps promptly.
+- Deduplicate versions with `npm dedupe` / `yarn dedupe` / `pnpm dedupe`.
+- Stay current on major versions within a project cycle; flag majors behind by 2+ versions.
+- Keep `dependencies` lean; everything else goes in `devDependencies`.
+- Check peer dependency warnings during code review or CI.
+
+Verification:
+
+- `npm ls --depth=0` produces no unmet peer warnings.
+- CI uses a frozen-install command; do not run install commands during this audit.
+- `depcheck` (or equivalent) reports zero obviously unused dependencies.
+
+## Error Handling & Debug Artifacts
+
+Smells:
+
+- Empty `catch {}` blocks that silence failures without logging or user feedback.
+- Promise chains without a terminal `.catch()` — rejections become unhandled.
+- Top-level React components missing error boundaries — a crash in one section takes down the entire tree.
+- `console.log` / `console.debug` in production source code not guarded by environment checks.
+- `debugger;` statements committed to source.
+- Large blocks of commented-out code without a documented reason or issue link.
+- High density of TODOs/FIXMEs without dates or owner references.
+
+Better shapes:
+
+- Every `catch` block logs, reports, or renders fallback UI — never just `catch {}`.
+- Every `.then()` chain has a trailing `.catch()`; async functions use try/catch at call sites.
+- Route-level and feature-section-level error boundaries wrap async-loaded content.
+- Production code uses a logger abstraction or `if (dev)` guard for debug output.
+- Remove commented-out code; if it must stay, link to a tracking issue with a target resolution date.
+- TODOs have an owner, a date, and/or an issue link.
+
+Verification:
+
+- Grep for `catch {` / `console.log(.*true` (unguarded) — zero hits in source.
+- Grep for `debugger;` — zero hits.
+- Check that error boundaries exist for each route or async-loaded section.
+- No large comment blocks without an associated issue.
+
+## CSS / Styling Hygiene
+
+Smells:
+
+- CSS files no longer imported by any component.
+- Static inline `style={{ ... }}` for colors, spacing, typography that should use a class or token.
+- Hardcoded color hexes, pixel values, or font sizes outside a design-token system.
+- Style objects created inline in the component body (re-created every render).
+- Very long Tailwind class strings (10+ utilities) on a single element that could be extracted.
+- Success/error/warning indicators using only color without text or icon support.
+
+Better shapes:
+
+- All colors, spacing, and typography values come from CSS custom properties, theme tokens, or a constants file.
+- Dynamic styles use inline `style`; static styles use classes or extracted components.
+- Style objects are defined outside the component or memoized.
+- Long utility chains are either a shared component or an `@apply` class (where project convention allows).
+- Styling changes are reviewable in diff (no giant obfuscated class strings).
+
+Verification:
+
+- Grep for hardcoded color hexes in JSX — flag any outside test fixtures.
+- Check that CSS-in-JS style objects are not defined inside component render functions.
+- Run an approved, side-effect-checked build and verify no dead CSS warnings from the bundler.
+
+## Configuration & Build Sprawl
+
+Smells:
+
+- Config files for tools no longer in `package.json` (e.g., `.babelrc` after SWC migration).
+- Duplicated ESLint/Prettier/TypeScript config across packages in a monorepo when a shared config exists.
+- Build output directories (`dist/`, `.next/`, `out/`, `build/`) tracked by git or missing from `.gitignore`.
+- `.env.example` missing variables that `process.env.*` references in source.
+- Bundler config referencing plugins or aliases for removed dependencies.
+- TypeScript `paths` or `references` misaligned with actual package layout.
+
+Better shapes:
+
+- Config files are pruned after tool migrations; dead config is removed in the same PR.
+- Monorepo packages extend a shared root config where possible.
+- Build output is gitignored; CI artifacts use a separate pipeline cache.
+- `.env.example` is kept in sync with actual usage — add variables when they are introduced.
+- Bundler config is reviewed whenever a dependency is removed.
+
+Verification:
+
+- Search for config filenames of tools not in `package.json` — zero hits.
+- Build output directories are in `.gitignore` and absent from `git status`.
+- `.env.example` entries match `grep -rh 'process\.env\.' src/` (modulo public-prefix conventions).
+
+## Accessibility
+
+Smells:
+
+- `<img>` elements without `alt` attribute.
+- `<div>` or `<span>` with `onClick` but no `role`, `tabIndex`, or keyboard handler.
+- Modals and dialogs that open without focus trapping or restoring focus on close.
+- `<input>` / `<select>` / `<textarea>` without an associated `<label>` or `aria-label`.
+- Dynamic content (toasts, alerts, spinners) without `aria-live` or `role="status"`/`role="alert"`.
+- Status indicators that rely solely on color (red/green) without text or icon.
+
+Better shapes:
+
+- All images have meaningful `alt` or `alt=""` with `role="presentation"` for decorative images.
+- Interactive elements use semantic HTML (`<button>`, `<a>`) or have correct `role` + keyboard handlers.
+- Modals use a focus-trap pattern and return focus to the triggering element on close.
+- Every form control has a visible label or `aria-label`.
+- Live regions use appropriate `aria-live` values (`polite` for non-critical, `assertive` for time-sensitive).
+- Status changes are communicated through text, icon, or announcement, not color alone.
+
+Verification:
+
+- Run the project's lint rules (many a11y checks are covered by `eslint-plugin-jsx-a11y`).
+- Spot-check keyboard navigation: Tab through modals, dialogs, and forms without a mouse.
+- Check that automated a11y tooling (axe-core, Lighthouse) is present in CI.
+
+## Frontend Security
+
+Smells:
+
+- `dangerouslySetInnerHTML` used without documented sanitization for user-generated content.
+- `<a href={...}>` or `<Link href={...}>` interpolating user input without `javascript:` prefix protection.
+- `message` event listeners that don't verify `event.origin` against an allowlist.
+- API keys, tokens, or secrets hardcoded in source files (not drawn from `process.env.*`).
+- `<script src={...}>` loading external resources without `integrity` (SRI) attributes.
+- CSP meta tag or server header set to `default-src *` or similar permissive values.
+
+Better shapes:
+
+- `dangerouslySetInnerHTML` usage is limited to trusted content and cross-referenced in security review.
+- User-supplied URLs are validated (parsed, protocol-checked) before use in `href`.
+- All `postMessage` listeners check `event.origin` before acting on data.
+- Secrets live in environment variables or a secrets manager — never in source.
+- External scripts use Subresource Integrity (`integrity` attribute).
+- Content Security Policy is restrictive and reviewed when new resource origins are needed.
+
+Verification:
+
+- Grep for `dangerouslySetInnerHTML` — every instance has a documented justification.
+- Grep for `message` event listeners — every one has an `event.origin` check.
+- Grep for hardcoded secrets (`apiKey`, `secret`, `token` as string literals) — zero hits in source.
+- Check that `integrity` attributes are present on all external `<script>` tags.
+
+## Bundle & Build Output
+
+Smells:
+
+- Entry chunks over ~250 KB (gzip) that aren't code-split.
+- Polyfills included for APIs natively supported in the project's browser targets.
+- Barrel imports from libraries known to have side effects or no tree-shaking.
+- Duplicate instances of `react` / `react-dom` in the lockfile (causes hooks/context bugs).
+- Large pages or modals not using lazy loading or dynamic import.
+- Source map files publicly accessible in production, or source maps disabled entirely.
+
+Better shapes:
+
+- Route-level and heavy-component code splitting is the default; measure before optimizing individual chunks.
+- Browser targets are explicit (`.browserslistrc`, `tsconfig` `lib`) and polyfills are audited against them.
+- Prefer direct imports over barrel imports from utility libraries.
+- Lockfile is checked for duplicate singletons during code review.
+- Source maps are uploaded to error tracking in production, not served to end users.
+
+Verification:
+
+- Run an approved, side-effect-checked build and check output sizes for large entry chunks.
+- `npm ls react` shows a single instance.
+- Check that route/page components use `React.lazy()` or dynamic `import()`.
+- Verify production `.map` files are not publicly accessible.

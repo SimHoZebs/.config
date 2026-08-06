@@ -98,8 +98,6 @@ You interact via Discord through the Kimaki bot. Key behaviors:
 # Verification
 
 Before marking a task complete:
-- Invoke `plan-reviewer` before implementing a non-trivial completed plan.
-- Invoke `code-change-reviewer` after meaningful local changes and validate its findings against the repository.
 - Test SSH access if the change is on debian-server
 - Verify config reloads when editing service configs
 - Run `git status` / `git diff` before committing

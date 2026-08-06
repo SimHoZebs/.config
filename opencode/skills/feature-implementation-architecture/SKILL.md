@@ -35,7 +35,7 @@ A preparatory refactor is required if direct implementation would cause any of t
 
 1. Adding a new variant by expanding a central conditional/switch/enum branch.
 2. Touching the same conceptual rule in 3 or more places.
-3. Adding significant code to a file over 300 lines, or any code to a file over 500 lines without justification.
+3. Adding significant code to a file over 300 lines where inspection reveals mixed responsibilities, or any code to a file over 500 lines without a clear justification.
 4. Adding new shared/persistent state without a clear owner.
 5. Requiring callers to remember a specific sequence of method calls.
 6. Mixing presentation, domain, persistence, or integration responsibilities.
