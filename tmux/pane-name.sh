@@ -16,13 +16,14 @@ DECOR=5       # per-window decoration catppuccin adds (index + separators + spac
 JOIN=3        # width of the " | " separator between two panes in one window
 FALLBACK=40   # per-pane budget when the screen can't be measured
 
-# Status markers prepended to a Claude pane's name. Change these two to taste.
+# Status markers prepended to agent pane names.
 # MUST be single-codepoint glyphs: bash ${#nm} (char count) must equal the column
 # count tmux lays out, or the water-fill budget below drifts by the difference.
 # Plain emoji satisfy this (measured 1 char == 1 tmux col in 3.6b); avoid the
 # variation-selector forms like "✳️" (base + U+FE0F) which count as 2 in both.
 WORK_MARK='🔄'   # Claude is processing
 DONE_MARK='✅'   # Claude finished / is awaiting input
+WAIT_MARK='🔔'   # OpenCode is waiting for user input
 
 # Strip a leading status glyph (Claude Code prefixes its OSC title with
 # "✳ " when idle or a braille spinner when working) and trailing space.
@@ -31,7 +32,7 @@ clean_title() {
 }
 
 resolve_name() {
-  local cmd="$1" title="$2" path="$3" clean lead status="" name
+  local cmd="$1" title="$2" ostatus="$3" path="$4" clean lead status="" name
   clean=$(clean_title "$title")
   # A leading glyph was stripped ⇒ this is Claude. Read the raw title's first two
   # UTF-8 bytes to tell working from idle: the animated spinner lives in the
@@ -60,10 +61,16 @@ resolve_name() {
     local msg
     msg=${title#OC \| }
     if [ -n "$msg" ] && [ "$msg" != "$title" ]; then
-      printf 'oc: %s' "$msg"
+      name="oc: $msg"
     else
-      echo "oc"
+      name="oc"
     fi
+    case "$ostatus" in
+      working) status="$WORK_MARK" ;;
+      waiting) status="$WAIT_MARK" ;;
+      done) status="$DONE_MARK" ;;
+    esac
+    [ -n "$status" ] && printf '%s %s' "$status" "$name" || printf '%s' "$name"
     return
   fi
   echo "$cmd"
@@ -132,12 +139,12 @@ cw=$(tmux display-message -p -t "$window_id" '#{client_width}' 2>/dev/null)
 sess=$(tmux display-message -p -t "$window_id" '#{session_id}' 2>/dev/null)
 cpath=$(tmux display-message -p -t "$sess" '#{pane_current_path}' 2>/dev/null)
 
-# 1. Gather every pane in the session (one call): window_id, command, title.
+# 1. Keep title last so it absorbs any stray separators.
 fwin=(); fname=()
-while IFS="$sep" read -r wid cmd title path; do
+while IFS="$sep" read -r wid cmd ostatus path title; do
   [ -z "$wid" ] && continue
-  fwin+=("$wid"); fname+=("$(resolve_name "$cmd" "$title" "$path")")
-done < <(tmux list-panes -s -t "$sess" -F "#{window_id}${sep}#{pane_current_command}${sep}#{pane_title}${sep}#{pane_current_path}" 2>/dev/null)
+  fwin+=("$wid"); fname+=("$(resolve_name "$cmd" "$title" "$ostatus" "$path")")
+done < <(tmux list-panes -s -t "$sess" -F "#{window_id}${sep}#{pane_current_command}${sep}#{@opencode_status}${sep}#{pane_current_path}${sep}#{pane_title}" 2>/dev/null)
 
 ntotal=${#fname[@]}
 [ "$ntotal" -eq 0 ] && exit 0

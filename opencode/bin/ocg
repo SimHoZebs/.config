@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+DB="${OPENCODE_DB_PATH:-${OPENCODE_DB:-$DATA_HOME/opencode/opencode.db}}"
+CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/opencode-search"
+CACHE_TMP=""
+STAMP_TMP=""
+
+cleanup() {
+  [ -z "$CACHE_TMP" ] || rm -f "$CACHE_TMP"
+  [ -z "$STAMP_TMP" ] || rm -f "$STAMP_TMP"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+die() { printf 'ocg: %s\n' "$1" >&2; exit 1; }
+
+[ -f "$DB" ] || die "opencode db not found at $DB"
+command -v sqlite3 >/dev/null || die "sqlite3 not found"
+command -v fzf >/dev/null || die "fzf not found"
+command -v rg >/dev/null || die "rg (ripgrep) not found"
+
+DB=$(python3 - "$DB" <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+)
+WAL="$DB-wal"
+CACHE_ID=$(printf '%s' "$DB" | cksum | awk '{print $1}')
+CACHE_DIR="$CACHE_ROOT/$CACHE_ID"
+CACHE="$CACHE_DIR/messages.tsv"
+STAMP="$CACHE_DIR/messages.stamp"
+LOCK="$CACHE_DIR/build.lock"
+mkdir -p "$CACHE_DIR"
+chmod 700 "$CACHE_ROOT" "$CACHE_DIR" 2>/dev/null || true
+
+sql() { sqlite3 -readonly -noheader -separator $'\t' "file:$DB?mode=ro" "$1"; }
+
+db_stamp() {
+  python3 - "$DB" "$WAL" <<'PY'
+import os, sys
+for path in sys.argv[1:]:
+    try:
+        stat = os.stat(path, follow_symlinks=False)
+    except FileNotFoundError:
+        print(f"{path}\tmissing")
+        continue
+    print(f"{path}\t{stat.st_dev}\t{stat.st_ino}\t{stat.st_size}\t{stat.st_mtime_ns}\t{stat.st_ctime_ns}")
+PY
+}
+
+cache_fresh() {
+  [ -f "$CACHE" ] && [ -f "$STAMP" ] || return 1
+  [ "$(cat "$STAMP")" = "$(db_stamp)" ]
+}
+
+durable() {
+  python3 - "$1" "$CACHE_DIR" <<'PY'
+import os, sys
+with open(sys.argv[1], "rb") as stream:
+    os.fsync(stream.fileno())
+directory = os.open(sys.argv[2], os.O_RDONLY)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+PY
+}
+
+durable_dir() {
+  python3 - "$CACHE_DIR" <<'PY'
+import os, sys
+directory = os.open(sys.argv[1], os.O_RDONLY)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+PY
+}
+
+validate_lock() {
+  local fd="${OCG_CACHE_LOCK_FD:-}"
+  [[ "$fd" =~ ^[0-9]+$ ]] || die "private cache builder requires an inherited lock"
+  python3 - "$fd" "$LOCK" <<'PY'
+import fcntl, os, stat, sys
+fd = int(sys.argv[1])
+expected = os.stat(sys.argv[2], follow_symlinks=False)
+actual = os.fstat(fd)
+if not stat.S_ISREG(expected.st_mode) or (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
+    raise SystemExit("invalid cache lock descriptor")
+try:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    raise SystemExit("cache lock is not held by this process")
+PY
+}
+
+build_cache_locked() {
+  validate_lock
+  if cache_fresh; then
+    printf '%s\n' "$CACHE"
+    return
+  fi
+
+  local before after attempt
+  for attempt in 1 2 3; do
+    CACHE_TMP="$CACHE.tmp.$$.$attempt"
+    STAMP_TMP="$STAMP.tmp.$$.$attempt"
+    before=$(db_stamp)
+    sql "
+      SELECT
+        p.session_id,
+        s.directory,
+        strftime('%Y-%m-%d', s.time_updated/1000, 'unixepoch', 'localtime'),
+        replace(replace(COALESCE(NULLIF(pr.name,''), s.project_id) || ' · ' || s.title, char(9),' '), char(10),' '),
+        replace(replace(replace(json_extract(p.data,'\$.text'), char(9),' '), char(10),' '), char(13),' ')
+      FROM part p
+      JOIN message m ON m.id = p.message_id
+      JOIN session s ON s.id = p.session_id
+      LEFT JOIN project pr ON pr.id = s.project_id
+      WHERE json_extract(p.data,'\$.type') = 'text'
+        AND json_extract(p.data,'\$.text') IS NOT NULL
+        AND trim(json_extract(p.data,'\$.text')) <> ''
+      ORDER BY s.time_updated DESC, m.time_created ASC, p.time_created ASC;
+    " > "$CACHE_TMP"
+    chmod 600 "$CACHE_TMP"
+    after=$(db_stamp)
+    if [ "$before" != "$after" ]; then
+      rm -f "$CACHE_TMP"
+      CACHE_TMP=""
+      continue
+    fi
+
+    printf '%s\n' "$after" > "$STAMP_TMP"
+    chmod 600 "$STAMP_TMP"
+    rm -f "$STAMP"
+    durable_dir
+    mv -f "$CACHE_TMP" "$CACHE"
+    CACHE_TMP=""
+    durable "$CACHE"
+    if [ "${OCG_TEST_FAIL_AFTER_CACHE_COMMIT:-0}" = "1" ]; then
+      return 75
+    fi
+    mv -f "$STAMP_TMP" "$STAMP"
+    STAMP_TMP=""
+    durable "$STAMP"
+    printf '%s\n' "$CACHE"
+    return
+  done
+  die "history changed repeatedly while building cache"
+}
+
+ensure_cache() {
+  python3 - "$LOCK" "$SELF" <<'PY'
+import fcntl, os, stat, subprocess, sys
+lock_path, script = sys.argv[1:]
+flags = os.O_CREAT | os.O_RDWR
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
+fd = os.open(lock_path, flags, 0o600)
+try:
+    os.fchmod(fd, 0o600)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        raise SystemExit("cache lock is not a regular file")
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    env = os.environ.copy()
+    env["OCG_CACHE_LOCK_FD"] = str(fd)
+    result = subprocess.run([script, "__ensure_cache_locked"], env=env, pass_fds=(fd,))
+    raise SystemExit(result.returncode)
+finally:
+    os.close(fd)
+PY
+}
+
+_transcript() {
+  local id="$1" q="${2:-}"
+  sql "
+    SELECT char(10) || '### ' || json_extract(m.data,'\$.role') || char(10) || json_extract(p.data,'\$.text')
+    FROM part p
+    JOIN message m ON m.id = p.message_id
+    WHERE p.session_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+      AND json_extract(p.data,'\$.type') = 'text'
+      AND json_extract(p.data,'\$.text') IS NOT NULL
+    ORDER BY m.time_created ASC, p.time_created ASC;
+  " | if [ -n "$q" ]; then rg --passthru --color=always -i -e "$q" 2>/dev/null || cat; else cat; fi
+}
+
+case "${1:-}" in
+  __transcript) shift; _transcript "$@"; exit 0 ;;
+  __buildcache) ensure_cache; exit $? ;;
+  __ensure_cache_locked) build_cache_locked; exit $? ;;
+esac
+
+handle_selection() {
+  local out="$1" key line id dir
+  key=$(printf '%s\n' "$out" | sed -n '1p')
+  line=$(printf '%s\n' "$out" | sed -n '2p')
+  [ -n "$line" ] || return 0
+  id=$(printf '%s' "$line" | cut -f1)
+  dir=$(printf '%s' "$line" | cut -f2)
+  [ -n "$id" ] || return 0
+
+  if [ "$key" = "ctrl-y" ]; then
+    printf '%s\n' "$id"
+    return 0
+  fi
+
+  if [ -n "$dir" ] && [ -d "$dir" ]; then
+    cd "$dir"
+  else
+    [ -n "$dir" ] && printf 'ocg: directory %s missing; resuming from %s\n' "$dir" "$HOME" >&2
+    cd "$HOME"
+  fi
+  exec opencode --session "$id"
+}
+
+sessions_mode() {
+  local init="${1:-}" src out
+  src=$(sql "
+    SELECT s.id, s.directory,
+      strftime('%Y-%m-%d',s.time_updated/1000,'unixepoch','localtime') || '  ' ||
+      replace(replace(COALESCE(NULLIF(pr.name,''),s.project_id) || ' · ' || s.title, char(9),' '), char(10),' ')
+    FROM session s LEFT JOIN project pr ON pr.id = s.project_id
+    ORDER BY s.time_updated DESC;")
+  out=$(printf '%s\n' "$src" | fzf \
+    --ansi --delimiter $'\t' --with-nth=3 --query "$init" \
+    --prompt 'sessions> ' --header 'Enter: resume   Ctrl-Y: print id' \
+    --preview "\"$SELF\" __transcript {1}" --preview-window 'right,60%,wrap' \
+    --expect ctrl-y) || return 0
+  handle_selection "$out"
+}
+
+content_mode() {
+  local init="${1:-}" out
+  cache_fresh || ensure_cache >/dev/null
+  [ -s "$CACHE" ] || die "no chat text found to search"
+  out=$(FZF_DEFAULT_COMMAND="cat -- $(printf '%q' "$CACHE")" fzf \
+    --ansi --disabled --delimiter $'\t' --with-nth=4,5 --query "$init" \
+    --prompt 'chat-grep> ' \
+    --header 'Enter: resume   Ctrl-Y: print id   (live ripgrep over all chats)' \
+    --bind "change:reload:rg --color=never --smart-case -- {q} $(printf '%q' "$CACHE") || true" \
+    --preview "\"$SELF\" __transcript {1} {q}" --preview-window 'right,60%,wrap' \
+    --expect ctrl-y) || return 0
+  handle_selection "$out"
+}
+
+MODE=content
+if [ "${1:-}" = "-s" ] || [ "${1:-}" = "--sessions" ]; then
+  MODE=sessions
+  shift
+fi
+
+case "$MODE" in
+  sessions) sessions_mode "${*:-}" ;;
+  content) content_mode "${*:-}" ;;
+esac

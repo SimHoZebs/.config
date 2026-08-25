@@ -93,6 +93,9 @@ describe("ChatHistory", () => {
     expect(history.search({ query: "secret command" })).toEqual([])
     expect(history.search({ query: "secret command", includeTools: true })[0].matchType).toBe("tool")
     expect(history.search({ query: "signed cookies", projectID: "other-project" })).toEqual([])
+    expect(history.search({ query: "signed cookies", since: 1150 })).toEqual([
+      expect.objectContaining({ role: "assistant" }),
+    ])
     history.close()
   })
 

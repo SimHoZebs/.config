@@ -117,6 +117,7 @@ alias la='ls -A'
 alias l='ls -CF'
 alias lg='lazygit'
 alias oc='opencode'
+alias ocg="$HOME/.config/opencode/bin/ocg"
 # SSH to remote server, detaching from local tmux and reattaching on exit
 ssht() {
     if [ -n "$TMUX" ]; then

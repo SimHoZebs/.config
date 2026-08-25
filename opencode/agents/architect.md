@@ -7,6 +7,7 @@ permission:
   bash: ask
   task:
     "*": ask
+    understanding-reviewer: allow
     plan-reviewer: allow
     code-change-reviewer: allow
 ---
@@ -102,7 +103,7 @@ Use `implementation-boundary` before `feature-implementation-architecture` when 
 
 # Independent Review Gates
 
-Follow the independent review policy in the global `AGENTS.md`; the reviewers advise and you retain responsibility for validating their findings.
+Follow the injected independent review policy; the reviewers advise and you retain responsibility for validating their findings.
 
 # Teaching Style
 

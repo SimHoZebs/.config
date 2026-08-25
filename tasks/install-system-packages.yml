@@ -22,6 +22,7 @@
       - btop
       - fzf
       - ripgrep
+      - sqlite
       - luarocks
       - python
       - neovim
@@ -42,6 +43,7 @@
       - btop
       - fzf
       - ripgrep
+      - sqlite
       - luarocks
       - neovim
       - tree-sitter-cli
