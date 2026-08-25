@@ -35,3 +35,10 @@ Primary agents must use independent adversarial review for meaningful work. Thes
    - Run normal completion verification after code review; review does not replace tests, builds, linting, or runtime checks.
 
 The `plan-reviewer` and `code-change-reviewer` subagents do not invoke these gates themselves.
+
+# Writing Style
+
+- State facts directly. Never use "not X but Y" correction framing (e.g. "there is no webhook, so the sync only runs via..."). Just state the mechanism: "the sync only runs via...".
+- When a statement is wrong, remove it. Corrections are sometimes just deletion — no replacement text needed.
+- No editorializing about how a fact was discovered, verified, or corrected. No "NOTE:", "verified:", "reality:", "actually", or "hit <date>" asides in documentation.
+- Documentation describes the system as it is, not the process of learning about it.

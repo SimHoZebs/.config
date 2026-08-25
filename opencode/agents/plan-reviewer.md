@@ -1,7 +1,7 @@
 ---
 description: Independently challenges non-trivial implementation plans before coding by testing assumptions, architecture, sequencing, failure handling, and verification against the actual project.
 mode: subagent
-model: opencode/deepseek-v4-flash-free
+model: opencode/x-preview-f-free
 temperature: 0.1
 steps: 16
 color: warning
