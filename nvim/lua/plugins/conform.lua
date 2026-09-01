@@ -61,7 +61,9 @@ return {
         require('conform').format { async = true, lsp_fallback = true }
       end, { desc = 'Format buffer' })
 
-      vim.keymap.set('v', '<leader>ff', function()
+      -- 'x' not 'v': 'v' also covers select mode, where a bare <Space> must
+      -- replace the selection (LuaSnip placeholders) instead of starting a map.
+      vim.keymap.set('x', '<leader>ff', function()
         require('conform').format { async = true, lsp_fallback = true }
       end, { desc = 'Format selection' })
     end,

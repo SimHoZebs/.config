@@ -5,15 +5,18 @@
 vim.opt.hlsearch = true
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
--- Diagnostic keymaps
-vim.keymap.set('n', '<leader>E', function()
-  vim.diagnostic.jump { count = -1, float = true }
-end, { desc = 'Go to previous [D]iagnostic message' })
-vim.keymap.set('n', '<leader>e', function()
-  vim.diagnostic.jump { count = 1, float = true }
-end, { desc = 'Go to next [D]iagnostic message' })
---vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
---vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+-- Diagnostics ride nvim's built-in ]d/[d rather than a leader pair. on_jump
+-- retargets the built-ins' float without remapping them; jump.float is the
+-- deprecated spelling, slated for removal in 0.14.
+vim.diagnostic.config {
+  jump = {
+    on_jump = function(diagnostic, bufnr)
+      if diagnostic then
+        vim.diagnostic.open_float { bufnr = bufnr, scope = 'cursor', focus = false }
+      end
+    end,
+  },
+}
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -52,9 +55,9 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   end,
 })
 
--- Easier terminal escape
-vim.keymap.set('t', '<leader>t', '<C-\\><C-n>')
-vim.keymap.set('t', '<leader>q', '<C-\\><C-n><cmd>quit<CR>', { desc = 'Close terminal' })
+-- No terminal-mode close binding: leader is <Space> and a bare <Esc> prefix are
+-- both sequences the inner program needs, so closing goes through <Esc><Esc>
+-- (above) then :q.
 
 -- buffer
 vim.keymap.set('n', '<leader>bd', function()
@@ -63,7 +66,6 @@ vim.keymap.set('n', '<leader>bd', function()
 end, { desc = 'Close buffer' })
 vim.keymap.set('n', '<leader>bn', '<cmd>bn<CR>', { desc = 'Next buffer' })
 vim.keymap.set('n', '<leader>bp', '<cmd>bp<CR>', { desc = 'Previous buffer' })
-vim.keymap.set('n', '<leader>bs', '<cmd>ls<CR>', { desc = 'List buffers' })
 vim.keymap.set('n', '<leader>ba', '<cmd>%bd<CR>', { desc = 'Close all buffers' })
 for i = 1, 9 do
   vim.keymap.set('n', '<leader>b' .. i, '<cmd>b' .. i .. '<CR>', { desc = 'Go to buffer ' .. i })
