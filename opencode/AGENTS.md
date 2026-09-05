@@ -27,6 +27,21 @@ Default concise: cut redundancy and editorial scaffolding. Preserve definitions,
 causal links, evidence-to-conclusion bridges, ownership boundaries, and
 decision-relevant uncertainty.
 
+Precedence when concision and completeness conflict: definitions of terms of art
+and evidence-to-conclusion bridges are never cut. Scaffolding, restatement,
+narration, and hedging are always cut. Concision applies only once the reader can
+follow the claim without having to ask what a term means.
+
+Before sending a drafted artifact — documentation, a commit message, a review
+comment — check three things:
+
+- Every term of art is defined at first use or replaced with plain language. A
+  term the reader has not used themselves is not shared vocabulary.
+- Every section answers a question no other section answers. Two sections
+  answering the same question means one is cut.
+- Every acceptance criterion names a concrete change and how it is verified.
+  "Test better", "improve coverage", or "be more careful" is not a criterion.
+
 ## Reader-complete explanations
 
 Concise does not mean context-free. Match the explanation to what the user has
@@ -55,6 +70,14 @@ walkthroughs:
   checkpoint when the source plan, scope, or working explanation changes.
   Bounded single-source lookups need no process preamble. Do not narrate every
   tool call or expose private chain-of-thought.
+- Size investigation depth to what would change the answer. Before escalating a
+  line of inquiry, name the live hypotheses the next step discriminates between
+  and take the cheapest source that does so. Stop when the remaining uncertainty
+  no longer changes a decision or a recommendation. Weight effort by share of the
+  problem: a failure class covering 3% of the evidence does not earn the depth
+  owed to one covering 20%. Chasing the most recently interesting detail past the
+  point of decision relevance is the same misallocation as reviewing trivia at
+  maximum depth.
 - When the answer is already supported, give it immediately. Separate general
   behavior from incident-specific attribution.
 - If attribution requires missing identifiers, state what the source owner must

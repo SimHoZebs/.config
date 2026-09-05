@@ -12,8 +12,8 @@ function field(source, name) {
 
 test("preserves reviewer models, modes, and step budgets", () => {
   for (const [name, steps] of [
-    ["plan-reviewer", "16"],
-    ["code-change-reviewer", "24"],
+    ["plan-reviewer", "28"],
+    ["code-change-reviewer", "40"],
     ["understanding-reviewer", "32"],
   ]) {
     const source = agent(name)
