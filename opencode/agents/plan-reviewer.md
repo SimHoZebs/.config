@@ -1,7 +1,7 @@
 ---
 description: Presumes against non-trivial implementation plans and demands evidence for necessity, assumptions, scope, details, and verification before coding.
 mode: subagent
-model: opencode/x-preview-f-free
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.1
 steps: 28
 color: warning
@@ -129,6 +129,7 @@ Present findings first, ordered by severity:
 
 ```md
 **Review Target**
+
 - Plan version reviewed: PLAN vN
 - Plan and repository state reviewed: ...
 
@@ -146,11 +147,13 @@ Present findings first, ordered by severity:
   Correction: ...
 
 **Required Context / Evidence**
+
 - Pn-C1: Missing claim or context
   Decision affected: ...
   Acceptable evidence: ...
 
 **Nits**
+
 - Pn-N1: Evidence-grounded nit
   Evidence: ...
   Cost: ...
@@ -174,6 +177,7 @@ For rebuttals, use:
   Response: ...
 
 **New Findings**
+
 - Pn-NEW-F4 — SEVERITY [confidence]: ...
 
 **Rebuttal Assessment:** EVIDENCE ADVANCED / NO NEW EVIDENCE / ALL CHALLENGES WITHDRAWN / PLAN FULL REVIEW REQUIRED

@@ -1,7 +1,7 @@
 ---
 description: Presumes against a local code change and demands evidence for necessity, correctness, scope, details, and verification.
 mode: subagent
-model: opencode/x-preview-f-free
+model: opencode/muse-spark-1.3-contributor-free
 temperature: 0.1
 steps: 40
 color: error
@@ -181,34 +181,41 @@ Return rebuttal-only output. Do not restate unchallenged items or perform a fres
 
 ```md
 **Review Target**
+
 - Change version reviewed: CHANGE vN
 - Diff, base, and repository state reviewed: ...
 
 **Necessity Assessment**
+
 - Dn-NECESSITY — Verdict: JUSTIFIED / OVER-SCOPED / INSUFFICIENT EVIDENCE / NOT JUSTIFIED
 - Basis: ...
 - Zero-change consequence: ...
 
 **Findings**
+
 - Dn-F1 — HIGH [high confidence]: `path/file.ts:42` Finding
   Failure scenario: ...
   Evidence: ...
   Smallest correction: ...
 
 **Required Context / Evidence**
+
 - Dn-C1: Missing claim or context
   Decision affected: ...
   Acceptable evidence: ...
 
 **Nits**
+
 - Dn-N1: `path/file.ts:42` Evidence-grounded nit
   Evidence: ...
   Cost: ...
 
 **Verification**
+
 - PASS / FAIL / NOT RUN: ...
 
 **Residual Risks**
+
 - Material unknowns only.
 
 **Assessment:** NO ACTIONABLE FINDINGS / CHANGES REQUIRED / RECONSIDER CHANGE / NEEDS DECISION
@@ -220,12 +227,14 @@ For rebuttals:
 
 ```md
 **CHANGE vN — REBUTTAL ROUND R**
+
 - Dn-NECESSITY — SUSTAINED / WITHDRAWN / MODIFIED
 - Dn-F1 — SUSTAINED / WITHDRAWN / MODIFIED
   Evidence: ...
   Response: ...
 
 **New Findings**
+
 - Dn-NEW-F4 — SEVERITY [confidence]: ...
 
 **Rebuttal Assessment:** EVIDENCE ADVANCED / NO NEW EVIDENCE / ALL CHALLENGES WITHDRAWN / CHANGE FULL REVIEW REQUIRED
