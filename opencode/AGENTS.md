@@ -42,6 +42,10 @@ comment — check three things:
 - Every acceptance criterion names a concrete change and how it is verified.
   "Test better", "improve coverage", or "be more careful" is not a criterion.
 
+Creating or editing an item in a shared system requires showing the exact final
+content and receiving explicit approval before the write. Approval of a plan,
+hierarchy, or summary is not approval of unseen shared-system content.
+
 ## Reader-complete explanations
 
 Concise does not mean context-free. Match the explanation to what the user has
