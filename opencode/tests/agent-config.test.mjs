@@ -30,14 +30,14 @@ test("wires the understanding reviewer into architect without narrowing global t
   assert.equal(config.small_model, "opencode/muse-spark-1.3-contributor-free")
 })
 
-test("runs the web-maintainer command through its dedicated read-only agent", () => {
+test("runs the web-maintainer command through a broad agent with direct edits denied", () => {
   const source = agent("web-maintainer")
   const command = readFileSync(new URL("../commands/web-maintainer.md", import.meta.url), "utf8")
+  const [, frontmatter] = source.split("---")
 
   assert.equal(field(source, "mode"), "subagent")
-  assert.match(source, /^  edit: deny$/m)
-  assert.match(source, /^  task:\n    "\*": deny\n    explore: allow$/m)
-  assert.doesNotMatch(source, /^  task:\n    "\*": allow$/m)
+  assert.match(frontmatter, /^permission:\n  edit: deny$/m)
+  assert.doesNotMatch(frontmatter, /^  (?:task|bash|read):/m)
   assert.match(source, /^## Pass 15: Bundle & Build Output$/m)
   assert.match(source, /^## Visual Primitive And Layout Ownership$/m)
   assert.match(command, /^agent: web-maintainer$/m)
