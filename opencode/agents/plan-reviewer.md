@@ -1,7 +1,7 @@
 ---
 description: Presumes against non-trivial implementation plans and demands evidence for necessity, assumptions, scope, details, and verification before coding.
 mode: subagent
-model: opencode/muse-spark-1.3-contributor-free
+model: opencode/space-bunny-free
 temperature: 0.1
 steps: 28
 color: warning

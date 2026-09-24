@@ -1,7 +1,7 @@
 ---
 description: Tests the robustness of a primary agent's already-researched understanding. Rejects delegated research, then challenges terminology, current-vs-future behavior, lifecycle/state semantics, source authority and freshness, and exact-link support.
 mode: subagent
-model: opencode/x-preview-f-free
+model: opencode/space-bunny-free
 temperature: 0.1
 steps: 32
 color: warning

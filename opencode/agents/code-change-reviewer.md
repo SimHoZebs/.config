@@ -1,7 +1,7 @@
 ---
 description: Presumes against a local code change and demands evidence for necessity, correctness, scope, details, and verification.
 mode: subagent
-model: opencode/muse-spark-1.3-contributor-free
+model: opencode/space-bunny-free
 temperature: 0.1
 steps: 40
 color: error
