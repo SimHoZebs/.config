@@ -24,6 +24,35 @@ ssh -F /home/simho/.kimaki/ssh/config debian-server <command>
 
 Config lives at `/home/simho/.kimaki/ssh/config`. The identity key is at `/home/simho/.kimaki/ssh/id_ed25519_homeserver`. Known hosts is written to `/dev/null` (the local `~/.ssh/` is read-only).
 
+# Northflank Access
+
+You have the Northflank CLI on PATH: `northflank` (shorthand `nf`). Wrappers live at `/home/simho/.kimaki/bin/northflank` and `/home/simho/.kimaki/bin/nf` and set `NF_CONFIG_DIR=/home/simho/.kimaki/northflank` so auth persists across redeploys. Auth is pre-configured via env API token (team scope, owner). Do not run `login`.
+
+```bash
+northflank context show
+northflank list projects
+northflank list services --projectId <projectId>
+northflank get service --projectId <projectId> --serviceId <serviceId>
+```
+
+- Use `-o json` + `--quiet` for scripting, `command-overview` to discover subcommands
+- Exec / port-forward: `northflank exec service --cmd 'date'`, `northflank forward`
+- File transfer: `northflank download`, `northflank upload`
+
+# Komodo API Access
+
+Direct Komodo Core API access via `./kimaki/komodo-api.sh` (repo mounted at `/home/simho/home-server` inside the container). Env `KOMODO_ADDRESS` (default `http://rbpi.lan:9120`), `KOMODO_API_KEY`, `KOMODO_API_SECRET` is injected from the kimaki stack environment (reuses the monitoring stack's variables). The helper never prints secrets.
+
+```bash
+./kimaki/komodo-api.sh read ListStacks
+./kimaki/komodo-api.sh read ListProcedures
+./kimaki/komodo-api.sh execute DeployStack '{"stack":"kimaki"}'
+```
+
+- Reads: `POST {address}/read/<Operation>`. Writes: `POST {address}/execute/<Operation>`.
+- Env/secret changes require Komodo **Deploy**, not Restart.
+- GitOps remains the default deploy path (edit TOML + push, 30-min procedure). Use direct `execute` for urgent deploy/restart only.
+
 # Architecture
 
 - **Two-node cluster:** `debian-server` (`192.168.86.39`, high-performance, GPU) + `rbpi` (LAN hostname `rbpi.lan`, 24/7 low-power)
