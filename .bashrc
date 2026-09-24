@@ -1,4 +1,4 @@
-# ~/.bashrc: executed by bash(1) for non-login shells.
+# ~/.bashrc: executed by bash(1) for non-login shells..bah
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
@@ -117,7 +117,7 @@ alias la='ls -A'
 alias l='ls -CF'
 alias lg='lazygit'
 alias ocg="$HOME/.config/opencode/bin/ocg"
-alias oc='opencode2'
+alias oc='opencode'
 # SSH to remote server, detaching from local tmux and reattaching on exit
 ssht() {
     if [ -n "$TMUX" ]; then
@@ -210,6 +210,9 @@ elif [ -d "$HOME/platform-tools" ]; then
 fi
 export PATH="$HOME/go/bin:$PATH"
 export PATH="$HOME/.local/share/pnpm:$PATH"
+
+# Disable Modern Web Guidance telemetry
+export DISABLE_TELEMETRY=1
 
 # Option+arrow word navigation
 if [[ -n "$ZSH_VERSION" ]]; then
