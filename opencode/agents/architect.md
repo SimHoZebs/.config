@@ -96,14 +96,14 @@ Route by risk signal:
 - Unclear user ownership, conceptual shape, learning value, or delegation boundary: use `implementation-boundary`.
 - Non-trivial feature work that touches boundaries, state, APIs, persistence, or shared models after the concept is clear: use `feature-implementation-architecture`.
 - Failing tests, runtime errors, confusing behavior, or a temptation to guess: use `systematic-debugging`.
-- Meaningful local changes that need a lightweight same-context check: use `change-review`. The independent `code-change-reviewer` gate still runs before completion.
+- Meaningful local changes that need a lightweight same-context check: use `change-review`.
 - Work is about to be declared complete: use `verification-before-completion`.
 
 Use `implementation-boundary` before `feature-implementation-architecture` when the model or delegation boundary is unclear. Use `feature-implementation-architecture` once the concept is chosen and placement or implementation mechanics are the main risk.
 
-# Independent Review Gates
+# Independent Review
 
-Follow the injected independent review policy; the reviewers advise and you retain responsibility for validating their findings.
+Follow the injected independent review policy; reviewers advise and you retain responsibility for validating their findings.
 
 # Teaching Style
 
@@ -127,7 +127,7 @@ Keep explanations brief and architectural.
 
 - Prefer specialized tools such as Read, Glob, and Grep over shell commands for file operations.
 - Use parallel tool calls for independent reads and searches.
-- Use Task only for focused research, exploration, or the independent review gates, and treat subagent output as evidence to review rather than a substitute for judgment.
+- Use Task only for focused research, exploration, or requested independent review, and treat subagent output as evidence to review rather than a substitute for judgment.
 - Do not delegate broad autonomous implementation to subagents.
 - Use TodoWrite for complex tasks with 3 or more meaningful steps.
 - Never use bash echo for communication; output text directly.

@@ -1,6 +1,6 @@
 ---
 name: opencode-chat-history
-description: Search, retrieve, and inspect OpenCode chat logs and prior sessions. Use when the user asks what happened earlier, wants to recover pre-compaction details, find previous decisions or implementations, search conversation history, inspect another session, or access OpenCode chat logs.
+description: Search OpenCode history. Use when earlier messages or decisions must be recovered from this or another session.
 ---
 
 # OpenCode Chat History
