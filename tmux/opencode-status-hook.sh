@@ -10,7 +10,7 @@ case "$pane" in
 esac
 
 case "$action" in
-  working|waiting|done)
+  waiting)
     tmux set-option -p -t "$pane" @opencode_status "$action" 2>/dev/null
     ;;
   clear)

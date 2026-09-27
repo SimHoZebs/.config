@@ -20,54 +20,73 @@ const MIN_BYTES = 2_000
 const MAX_BYTES = 5_000_000
 const MAX_DEPTH = 128
 
-export default async function PrettyJson() {
-  return {
-    "tool.execute.after": async (_input, output) => {
-      try {
-        if (Array.isArray(output.content)) {
-          for (const item of output.content) {
-            if (
-              item?.type !== "text" ||
-              typeof item.text !== "string" ||
-              encodedLength(item.text, "utf8") < MIN_BYTES
-            ) continue
-            const formatted = reflowContent(item.text, "utf8")
-            if (formatted) item.text = formatted
-          }
-        }
-
-        const paths = new Set()
-        if (typeof output.metadata?.outputPath === "string") {
-          paths.add(output.metadata.outputPath)
-        } else if (typeof output.output === "string") {
-          const match = /Full output saved to:\s*(\S+)/.exec(output.output)
-          if (match) paths.add(match[1].replace(/[.,;:)\]]+$/, ""))
-        }
-        for (const path of paths) rewriteSpill(path)
-
-        if (typeof output.output === "string" && encodedLength(output.output, "utf8") >= MIN_BYTES) {
-          const newline = output.output.indexOf("\n")
-          if (newline === -1 || newline === output.output.length - 1) {
-            const formatted = reflow(output.output, "utf8")
-            if (formatted) output.output = formatted
-          }
-        }
-      } catch {
-        // Formatting must not replace a successful tool result with an error.
-      }
-    },
-  }
+async function installPlugin(ctx) {
+  await ctx.tool.hook("execute.after", async (event) => {
+    try {
+      if (event.status !== "completed" || !event.result) return
+      event.result = processToolResult(event.result)
+    } catch {
+      // Formatting must not replace a successful tool result with an error.
+    }
+  })
 }
 
-function spillRoot() {
+export function processToolResult(result) {
+  const paths = new Set()
+  if (typeof result.metadata?.outputPath === "string") {
+    paths.add(result.metadata.outputPath)
+  } else {
+    const match = /Full output saved to:\s*(\S+)/.exec(toolResultTexts(result).join("\n"))
+    if (match) paths.add(match[1].replace(/[.,;:)\]]+$/, ""))
+  }
+  for (const path of paths) rewriteSpill(path)
+
+  const next = { ...result }
+  if (typeof result.output === "string") {
+    next.output = reflowInline(result.output) ?? result.output
+  } else if (typeof result.output?.output === "string") {
+    const formatted = reflowInline(result.output.output)
+    if (formatted) next.output = { ...result.output, output: formatted }
+  }
+  if (Array.isArray(result.content)) {
+    next.content = result.content.map((item) => {
+      if (item?.type !== "text" || typeof item.text !== "string") return item
+      const formatted = reflowInline(item.text)
+      return formatted ? { ...item, text: formatted } : item
+    })
+  }
+  return next
+}
+
+function toolResultTexts(result) {
+  const texts = []
+  if (typeof result.output === "string") texts.push(result.output)
+  if (typeof result.output?.output === "string") texts.push(result.output.output)
+  if (Array.isArray(result.content)) {
+    for (const item of result.content) if (item?.type === "text" && typeof item.text === "string") texts.push(item.text)
+  }
+  return texts
+}
+
+function reflowInline(source) {
+  if (encodedLength(source, "utf8") < MIN_BYTES) return null
+  const newline = source.indexOf("\n")
+  if (newline !== -1 && newline !== source.length - 1) return null
+  return reflow(source, "utf8")
+}
+
+function spillRoot(path) {
   const dataHome = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share")
-  return resolve(join(dataHome, "opencode", "tool-output"))
+  const name = basename(path)
+  if (name.startsWith("tool_")) return resolve(join(dataHome, "opencode", "tool-output"))
+  if (name.startsWith("sh_")) return resolve(join(dataHome, "opencode", "shell"))
+  return null
 }
 
 function rewriteSpill(path) {
-  const root = spillRoot()
   const absolute = resolve(path)
-  if (!basename(absolute).startsWith("tool_")) return
+  const root = spillRoot(absolute)
+  if (!root) return
   if (!absolute.startsWith(root + "/") || !existsSync(root) || !existsSync(absolute)) return
 
   const rootReal = realpathSync(root)
@@ -271,4 +290,9 @@ function nextNonWhitespace(value, offset) {
 
 function maxLineLength(value) {
   return value.split("\n").reduce((maximum, line) => Math.max(maximum, line.length), 0)
+}
+
+export default {
+  id: "local.pretty-json",
+  setup: installPlugin,
 }

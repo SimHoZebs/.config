@@ -1,100 +1,141 @@
-import { type Plugin, tool } from "@opencode-ai/plugin"
 import {
   ChatHistory,
   formatSearchResults,
   formatTranscript,
   parseSince,
   type Role,
-} from "../lib/history-store"
+} from "../lib/history-store.ts"
 
-const roleSchema = tool.schema.enum(["user", "assistant"]).optional()
+const commonProperties = {
+  limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+  role: { type: "string", enum: ["user", "assistant"] },
+  includeTools: { type: "boolean", default: false },
+}
 
-export const ChatHistoryPlugin: Plugin = async ({ project }) => ({
-  tool: {
-    chat_history_current: tool({
+type HistoryArgs = {
+  query?: string
+  scope?: "current" | "project" | "all"
+  sessionID?: string
+  limit?: number
+  role?: Role
+  since?: string
+  includeTools?: boolean
+}
+
+async function installPlugin(ctx: any) {
+  await ctx.tool.transform((tools: any) => {
+    tools.add({
+      name: "chat_history_current",
+      options: { codemode: false },
       description:
         "Read or search the current OpenCode chat transcript. Use to recover earlier details from this session without guessing its session ID.",
-      args: {
-        query: tool.schema.string().optional().describe("Optional text to search within the current session"),
-        limit: tool.schema.number().int().min(1).max(100).default(20),
-        role: roleSchema,
-        includeTools: tool.schema.boolean().default(false),
+      input: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Optional text to search within the current session" },
+          ...commonProperties,
+        },
+        additionalProperties: false,
       },
-      async execute(args, context) {
-        return withHistory((history) => {
-          if (args.query) {
-            return formatSearchResults(
-              history.search({
-                query: args.query,
-                sessionID: context.sessionID,
-                limit: args.limit,
-                role: args.role as Role | undefined,
-                includeTools: args.includeTools,
-              }),
-            )
-          }
-          const transcript = history.getTranscript({
-            sessionID: context.sessionID,
-            limit: args.limit,
-            role: args.role as Role | undefined,
-            includeTools: args.includeTools,
-          })
-          return transcript ? formatTranscript(transcript) : "Current session was not found in history."
-        })
-      },
-    }),
+      execute: async (args: HistoryArgs, toolContext: { sessionID: string }) => ({
+        content: currentHistory(args, toolContext.sessionID),
+      }),
+    })
 
-    chat_history_search: tool({
+    tools.add({
+      name: "chat_history_search",
+      options: { codemode: false },
       description:
         "Search OpenCode chat history by text. Defaults to the current project; widen to all sessions only when the user asks for global history.",
-      args: {
-        query: tool.schema.string().min(1),
-        scope: tool.schema.enum(["current", "project", "all"]).default("project"),
-        limit: tool.schema.number().int().min(1).max(100).default(20),
-        role: roleSchema,
-        since: tool.schema.string().optional().describe("Date or timestamp accepted by JavaScript Date.parse"),
-        includeTools: tool.schema.boolean().default(false),
+      input: {
+        type: "object",
+        properties: {
+          query: { type: "string", minLength: 1 },
+          scope: { type: "string", enum: ["current", "project", "all"], default: "project" },
+          since: { type: "string", description: "Date or timestamp accepted by JavaScript Date.parse" },
+          ...commonProperties,
+        },
+        required: ["query"],
+        additionalProperties: false,
       },
-      async execute(args, context) {
-        return withHistory((history) =>
-          formatSearchResults(
-            history.search({
-              query: args.query,
-              sessionID: args.scope === "current" ? context.sessionID : undefined,
-              projectID: args.scope === "project" ? project.id : undefined,
-              limit: args.limit,
-              role: args.role as Role | undefined,
-              since: parseSince(args.since),
-              includeTools: args.includeTools,
-            }),
-          ),
-        )
-      },
-    }),
+      execute: async (args: HistoryArgs, toolContext: { sessionID: string }) => ({
+        content: searchHistory(args, toolContext.sessionID),
+      }),
+    })
 
-    chat_history_get: tool({
-      description:
-        "Retrieve recent messages from a specific OpenCode session selected from history search results.",
-      args: {
-        sessionID: tool.schema.string().min(1),
-        limit: tool.schema.number().int().min(1).max(100).default(20),
-        role: roleSchema,
-        includeTools: tool.schema.boolean().default(false),
+    tools.add({
+      name: "chat_history_get",
+      options: { codemode: false },
+      description: "Retrieve recent messages from a specific OpenCode session selected from history search results.",
+      input: {
+        type: "object",
+        properties: {
+          sessionID: { type: "string", minLength: 1 },
+          ...commonProperties,
+        },
+        required: ["sessionID"],
+        additionalProperties: false,
       },
-      async execute(args) {
-        return withHistory((history) => {
-          const transcript = history.getTranscript({
-            sessionID: args.sessionID,
-            limit: args.limit,
-            role: args.role as Role | undefined,
-            includeTools: args.includeTools,
-          })
-          return transcript ? formatTranscript(transcript) : `Session not found: ${args.sessionID}`
-        })
-      },
-    }),
-  },
-})
+      execute: async (args: HistoryArgs) => ({
+        content: getHistory(args),
+      }),
+    })
+  })
+}
+
+function currentHistory(args: HistoryArgs, sessionID: string) {
+  return withHistory((history) => {
+    if (args.query) {
+      return formatSearchResults(history.search({
+        query: args.query,
+        sessionID,
+        limit: args.limit ?? 20,
+        role: args.role,
+        includeTools: args.includeTools ?? false,
+      }))
+    }
+    const transcript = history.getTranscript({
+      sessionID,
+      limit: args.limit ?? 20,
+      role: args.role,
+      includeTools: args.includeTools ?? false,
+    })
+    return transcript ? formatTranscript(transcript) : "Current session was not found in history."
+  })
+}
+
+function searchHistory(args: HistoryArgs, currentSessionID: string) {
+  if (!args.query) throw new Error("Search query cannot be empty")
+  return withHistory((history) => {
+    const scope = args.scope ?? "project"
+    const projectID = scope === "project" ? history.getProjectID(currentSessionID) : undefined
+    if (scope === "project" && !projectID) {
+      throw new Error("Cannot resolve the current project for project-scoped history search")
+    }
+    return formatSearchResults(history.search({
+      query: args.query!,
+      sessionID: scope === "current" ? currentSessionID : undefined,
+      projectID: projectID ?? undefined,
+      limit: args.limit ?? 20,
+      role: args.role,
+      since: parseSince(args.since),
+      includeTools: args.includeTools ?? false,
+    }))
+  })
+}
+
+function getHistory(args: HistoryArgs) {
+  if (!args.sessionID) throw new Error("sessionID is required")
+  return withHistory((history) => {
+    const transcript = history.getTranscript({
+      sessionID: args.sessionID!,
+      limit: args.limit ?? 20,
+      role: args.role,
+      includeTools: args.includeTools ?? false,
+    })
+    return transcript ? formatTranscript(transcript) : `Session not found: ${args.sessionID}`
+  })
+}
 
 function withHistory<T>(operation: (history: ChatHistory) => T) {
   const history = new ChatHistory()
@@ -103,4 +144,9 @@ function withHistory<T>(operation: (history: ChatHistory) => T) {
   } finally {
     history.close()
   }
+}
+
+export default {
+  id: "local.chat-history",
+  setup: installPlugin,
 }

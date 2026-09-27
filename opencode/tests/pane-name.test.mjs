@@ -37,18 +37,19 @@ function row(command, status, title, window = "@1") {
   return [window, command, status, "/repo", title].join(separator) + "\n"
 }
 
-test("renders every OpenCode state", () => {
-  assert.equal(render(row("opencode", "working", "OC | Fix cache")), "🔄 oc: Fix cache")
-  assert.equal(render(row("opencode", "waiting", "OC | Fix cache")), "🔔 oc: Fix cache")
-  assert.equal(render(row("opencode", "done", "OC | Fix cache")), "✅ oc: Fix cache")
-  assert.equal(render(row("opencode", "", "OC | Fix cache")), "oc: Fix cache")
+test("renders the OpenCode waiting state for every OpenCode command name", () => {
+  for (const command of ["opencode", "opencode.exe", "opencode2", "opencode2.exe"]) {
+    assert.equal(render(row(command, "waiting", "OC | Fix cache")), "🔔 oc: Fix cache")
+    assert.equal(render(row(command, "", "OC | Fix cache")), "oc: Fix cache")
+  }
+  assert.equal(render(row("opencode.exe", "working", "OC | Fix cache")), "oc: Fix cache")
 })
 
 test("preserves Claude, ordinary, and multipane naming", () => {
   assert.equal(render(row("claude", "", "✳ Task title")), "✅ Task title")
   assert.equal(render(row("zsh", "", "ignored")), "zsh")
   assert.equal(
-    render(row("opencode", "working", "OC | Task") + row("zsh", "", "ignored")),
-    "🔄 oc: Task | zsh",
+    render(row("opencode", "waiting", "OC | Task") + row("zsh", "", "ignored")),
+    "🔔 oc: Task | zsh",
   )
 })

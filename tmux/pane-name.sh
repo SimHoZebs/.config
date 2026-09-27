@@ -57,7 +57,9 @@ resolve_name() {
     printf '%s: %s' "$short" "$repo"
     return
   fi
-  if [ "$cmd" = "opencode" ]; then
+  # tmux reports the executable behind the launcher, so a V2 pane can show
+  # opencode.exe or opencode2.exe instead of opencode.
+  case "$cmd" in opencode|opencode.exe|opencode2|opencode2.exe)
     local msg
     msg=${title#OC \| }
     if [ -n "$msg" ] && [ "$msg" != "$title" ]; then
@@ -65,14 +67,13 @@ resolve_name() {
     else
       name="oc"
     fi
-    case "$ostatus" in
-      working) status="$WORK_MARK" ;;
-      waiting) status="$WAIT_MARK" ;;
-      done) status="$DONE_MARK" ;;
-    esac
+    # One pane can hold several sessions, so a working-or-done aggregate would
+    # not say which tab it meant; only a blocked prompt is reported.
+    [ "$ostatus" = "waiting" ] && status="$WAIT_MARK"
     [ -n "$status" ] && printf '%s %s' "$status" "$name" || printf '%s' "$name"
     return
-  fi
+    ;;
+  esac
   echo "$cmd"
 }
 
