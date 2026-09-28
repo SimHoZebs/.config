@@ -57,9 +57,10 @@ resolve_name() {
     printf '%s: %s' "$short" "$repo"
     return
   fi
-  # tmux reports the executable behind the launcher, so a V2 pane can show
-  # opencode.exe or opencode2.exe instead of opencode.
-  case "$cmd" in opencode|opencode.exe|opencode2|opencode2.exe)
+  # The command tmux reports depends on how OpenCode was installed: the official
+  # installer and npm run it as opencode (or opencode2, npm's second command),
+  # while pnpm's launcher execs the packaged opencode.exe.
+  case "$cmd" in opencode|opencode.exe|opencode2)
     local msg
     msg=${title#OC \| }
     if [ -n "$msg" ] && [ "$msg" != "$title" ]; then
