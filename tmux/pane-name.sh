@@ -58,9 +58,9 @@ resolve_name() {
     return
   fi
   # The command tmux reports depends on how OpenCode was installed: the official
-  # installer and npm run it as opencode (or opencode2, npm's second command),
-  # while pnpm's launcher execs the packaged opencode.exe.
-  case "$cmd" in opencode|opencode.exe|opencode2)
+  # installer and npm run it as opencode, while pnpm's launcher execs the
+  # packaged opencode.exe.
+  case "$cmd" in opencode|opencode.exe)
     local msg
     msg=${title#OC \| }
     if [ -n "$msg" ] && [ "$msg" != "$title" ]; then

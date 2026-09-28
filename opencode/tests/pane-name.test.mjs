@@ -38,7 +38,7 @@ function row(command, status, title, window = "@1") {
 }
 
 test("renders the OpenCode waiting state for every OpenCode command name", () => {
-  for (const command of ["opencode", "opencode.exe", "opencode2"]) {
+  for (const command of ["opencode", "opencode.exe"]) {
     assert.equal(render(row(command, "waiting", "OC | Fix cache")), "🔔 oc: Fix cache")
     assert.equal(render(row(command, "", "OC | Fix cache")), "oc: Fix cache")
   }
