@@ -49,9 +49,6 @@ return {
         nginx = { 'nginxfmt' },
       },
       formatters = {
-        stylua = {
-          command = vim.fn.exepath 'stylua',
-        },
         ktlint = {
           prepend_args = function(_, ctx)
             return {

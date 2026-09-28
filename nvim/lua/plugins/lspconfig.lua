@@ -198,6 +198,7 @@ return {
           'clangd',
           'clang-format',
           'tsgo',
+          { 'ktlint', version = '1.5.0' },
         },
       }
 
