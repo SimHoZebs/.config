@@ -1,13 +1,12 @@
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { basename, dirname, join, resolve } from "node:path"
+import { join, resolve } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import test, { afterEach } from "node:test"
 
 const script = resolve(new URL("../bin/ocg", import.meta.url).pathname)
-const realSqlite = spawnSync("sh", ["-c", "command -v sqlite3"], { encoding: "utf8" }).stdout.trim()
 const temporaryRoots = []
 
 afterEach(() => {
@@ -27,46 +26,58 @@ function setup() {
   const database = new DatabaseSync(databasePath)
   database.exec(`
     CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT);
-    CREATE TABLE session (id TEXT PRIMARY KEY, project_id TEXT, directory TEXT, title TEXT, time_updated INTEGER);
-    CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
-    CREATE TABLE part (id TEXT PRIMARY KEY, session_id TEXT, message_id TEXT, time_created INTEGER, data TEXT);
+    CREATE TABLE session_v2 (
+      id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, title TEXT,
+      time_updated INTEGER, time_archived INTEGER
+    );
+    CREATE TABLE session_message (
+      id TEXT PRIMARY KEY, session_id TEXT, type TEXT, seq INTEGER,
+      time_created INTEGER, time_updated INTEGER, data TEXT
+    );
   `)
   database.prepare("INSERT INTO project VALUES (?, ?)").run("p1", "Demo")
-  database.prepare("INSERT INTO session VALUES (?, ?, ?, ?, ?)").run("s1", "p1", project, "Test session", 2000)
-  addMessage(database, "m1", 1000, "hello history")
   database.close()
 
   writeExecutable(join(bin, "fzf"), `#!/bin/bash
-input=$(cat)
-if [ -z "$input" ] && [ -n "\${FZF_DEFAULT_COMMAND:-}" ]; then input=$(eval "$FZF_DEFAULT_COMMAND"); fi
-line=$(printf '%s\n' "$input" | sed -n '1p')
-printf '\n%s\n' "$line"
+printf '%s\\n' "$@" > "$OCG_FZF_ARGS"
+IFS= read -r line || exit 1
+printf '\\n%s\\n' "$line"
 `)
-  writeExecutable(join(bin, "rg"), "#!/bin/bash\ncat\n")
   writeExecutable(join(bin, "opencode"), `#!/bin/bash
-printf '%s\t%s\n' "$PWD" "$*" >> "$OCG_CAPTURE"
+printf '%s\\t%s\\n' "$PWD" "$*" >> "$OCG_CAPTURE"
 `)
 
-  const capture = join(root, "capture")
   const env = {
     ...process.env,
     HOME: home,
     XDG_DATA_HOME: data,
     XDG_CACHE_HOME: cache,
-    OCG_CAPTURE: capture,
+    OCG_CAPTURE: join(root, "capture"),
+    OCG_FZF_ARGS: join(root, "fzf-args"),
+    OCG_PAUSE: "0",
     PATH: `${bin}:${process.env.PATH}`,
   }
-  return { root, data, cache, home, project, bin, databasePath, capture, env }
+  return { root, cache, project, databasePath, capture: env.OCG_CAPTURE, env }
 }
 
-function addMessage(database, id, time, text) {
-  database.prepare("INSERT INTO message VALUES (?, 's1', ?, ?)").run(id, time, JSON.stringify({ role: "assistant" }))
-  database.prepare("INSERT INTO part VALUES (?, 's1', ?, ?, ?)").run(
-    `part-${id}`,
-    id,
-    time,
-    JSON.stringify({ type: "text", text }),
+function write(fixture, statements) {
+  const database = new DatabaseSync(fixture.databasePath)
+  statements(database)
+  database.close()
+}
+
+function addSession(database, id, { parent = null, directory, title = id, archived = null } = {}) {
+  database.prepare("INSERT INTO session_v2 VALUES (?, 'p1', ?, ?, ?, 1, ?)").run(id, parent, directory, title, archived)
+}
+
+function addMessage(database, sessionID, seq, time, type, data) {
+  database.prepare("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    `${sessionID}-${seq}`, sessionID, type, seq, time, time, JSON.stringify(data),
   )
+}
+
+function assistant(...texts) {
+  return { content: texts.map((text) => ({ type: "text", text })) }
 }
 
 function writeExecutable(path, content) {
@@ -78,130 +89,170 @@ function run(args, env) {
   return spawnSync(script, args, { env, encoding: "utf8" })
 }
 
-test("uses XDG paths, private cache modes, and resumes the selected session", () => {
+function stream(env) {
+  const result = run(["__stream"], env)
+  assert.equal(result.status, 0, result.stderr)
+  return result.stdout.trim().split("\n").filter(Boolean).map((line) => line.split("\t"))
+}
+
+function cacheDirectory(fixture) {
+  const [databaseKey] = readdirSync(join(fixture.cache, "opencode-search"))
+  return join(fixture.cache, "opencode-search", databaseKey, "sessions")
+}
+
+test("streams newest sessions first and attributes subagent text to the session to resume", () => {
   const fixture = setup()
+  write(fixture, (database) => {
+    addSession(database, "ses_old", { directory: fixture.project, title: "Old work" })
+    addSession(database, "ses_new", { directory: fixture.project, title: "New work" })
+    addSession(database, "ses_child", { parent: "ses_new", directory: "/elsewhere", title: "Child task" })
+    addMessage(database, "ses_old", 1, 1000, "user", { text: "old question" })
+    addMessage(database, "ses_new", 1, 2000, "user", { text: "new question" })
+    addMessage(database, "ses_child", 1, 3000, "assistant", assistant("child finding"))
+  })
+
+  const lines = stream(fixture.env)
+  assert.deepEqual(lines.map((fields) => fields[4]), ["child finding", "new question", "old question"])
+  assert.deepEqual(lines[0].slice(0, 3), ["ses_new", fixture.project, "ses_child"])
+  assert.match(lines[0][3], /Demo · New work › Child task/)
+})
+
+test("excludes archived sessions and non-text, synthetic, and non-chat messages", () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    addSession(database, "ses_live", { directory: fixture.project })
+    addSession(database, "ses_archived", { directory: fixture.project, archived: 5 })
+    addMessage(database, "ses_live", 1, 1000, "assistant", {
+      content: [
+        { type: "reasoning", text: "private reasoning" },
+        { type: "tool", name: "shell", state: { input: { command: "tool command" } } },
+        { type: "text", text: "synthetic note", synthetic: true },
+        { type: "text", text: "visible answer" },
+      ],
+    })
+    addMessage(database, "ses_live", 2, 1100, "system", { text: "system prompt" })
+    addMessage(database, "ses_archived", 1, 2000, "user", { text: "archived text" })
+  })
+
+  assert.deepEqual(stream(fixture.env).map((fields) => fields[4]), ["visible answer"])
+})
+
+test("keeps a private per-session cache and re-reads only sessions whose messages changed", () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    addSession(database, "ses_a", { directory: fixture.project })
+    addSession(database, "ses_b", { directory: fixture.project })
+    addMessage(database, "ses_a", 1, 1000, "user", { text: "first a" })
+    addMessage(database, "ses_b", 1, 2000, "user", { text: "first b" })
+  })
   const databaseBefore = readFileSync(fixture.databasePath)
-  const build = run(["__buildcache"], fixture.env)
-  assert.equal(build.status, 0, build.stderr)
-  const cachePath = build.stdout.trim()
-  assert.ok(cachePath.startsWith(fixture.cache))
-  assert.equal(statSync(dirname(dirname(cachePath))).mode & 0o777, 0o700)
-  assert.equal(statSync(dirname(cachePath)).mode & 0o777, 0o700)
-  assert.equal(statSync(cachePath).mode & 0o777, 0o600)
-  assert.equal(statSync(join(dirname(cachePath), "messages.stamp")).mode & 0o777, 0o600)
+  stream(fixture.env)
   assert.deepEqual(readFileSync(fixture.databasePath), databaseBefore)
 
-  const selection = run(["--sessions", "Test"], fixture.env)
-  assert.equal(selection.status, 0, selection.stderr)
-  const [cwd, argumentsText] = readFileSync(fixture.capture, "utf8").trim().split("\t")
-  assert.equal(cwd, fixture.project)
-  assert.equal(argumentsText, "--session s1")
+  const directory = cacheDirectory(fixture)
+  assert.equal(statSync(join(fixture.cache, "opencode-search")).mode & 0o777, 0o700)
+  assert.equal(statSync(directory).mode & 0o777, 0o700)
+  const files = readdirSync(directory)
+  assert.equal(files.length, 2)
+  for (const file of files) assert.equal(statSync(join(directory, file)).mode & 0o777, 0o600)
+  const cachedA = files.find((file) => file.startsWith("ses_a."))
+  const inodeA = statSync(join(directory, cachedA)).ino
+  writeFileSync(join(directory, cachedA), "served from cache\n")
+
+  write(fixture, (database) => addMessage(database, "ses_b", 2, 3000, "user", { text: "second b" }))
+  const texts = stream(fixture.env).map((fields) => fields[4])
+  assert.deepEqual(texts, ["first b", "second b", "served from cache"])
+
+  const after = readdirSync(directory)
+  assert.equal(after.length, 2)
+  assert.equal(statSync(join(directory, cachedA)).ino, inodeA)
+  assert.equal(after.some((file) => files.includes(file) && file.startsWith("ses_b.")), false)
+})
+
+test("pauses between batches once the eager window is loaded", () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    for (let index = 0; index < 4; index++) {
+      addSession(database, `ses_${index}`, { directory: fixture.project })
+      addMessage(database, `ses_${index}`, 1, 1000 + index, "user", { text: `text ${index}` })
+    }
+  })
+  const started = Date.now()
+  const lines = stream({ ...fixture.env, OCG_EAGER: "1", OCG_BATCH: "1", OCG_PAUSE: "0.3" })
+  assert.equal(lines.length, 4)
+  assert.ok(Date.now() - started >= 900, `expected three 0.3s pauses, took ${Date.now() - started}ms`)
+})
+
+test("removes the previous single-file cache", () => {
+  const fixture = setup()
+  const legacy = join(fixture.cache, "opencode-search", "12345")
+  mkdirSync(legacy, { recursive: true })
+  for (const name of ["messages.tsv", "messages.stamp", "build.lock"]) writeFileSync(join(legacy, name), "old")
+  writeFileSync(join(fixture.cache, "opencode-search", "messages.tsv"), "old")
+  write(fixture, (database) => {
+    addSession(database, "ses_a", { directory: fixture.project })
+    addMessage(database, "ses_a", 1, 1000, "user", { text: "hello" })
+  })
+  stream(fixture.env)
+  assert.equal(existsSync(legacy), false)
+  assert.equal(existsSync(join(fixture.cache, "opencode-search", "messages.tsv")), false)
+})
+
+test("resumes the selected root session from its directory", () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    addSession(database, "ses_root", { directory: fixture.project, title: "Root" })
+    addSession(database, "ses_child", { parent: "ses_root", directory: "/elsewhere" })
+    addMessage(database, "ses_child", 1, 1000, "assistant", assistant("child text"))
+  })
+
+  const content = run(["child"], fixture.env)
+  assert.equal(content.status, 0, content.stderr)
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
+  assert.match(readFileSync(fixture.env.OCG_FZF_ARGS, "utf8"), /^--exact$/m)
+
+  rmSync(fixture.capture)
+  const picker = run(["--sessions", "Root"], fixture.env)
+  assert.equal(picker.status, 0, picker.stderr)
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
   assert.equal(statSync(script).mode & 0o111, 0o111)
 })
 
-test("retries when the database changes after the first query snapshot", () => {
+test("stops the background loader when the picker exits early", async () => {
   const fixture = setup()
-  const log = join(fixture.root, "sqlite.log")
-  const once = join(fixture.root, "mutated")
-  writeExecutable(join(fixture.bin, "sqlite3"), `#!/bin/bash
-printf 'query\n' >> "$SQLITE_LOG"
-"$REAL_SQLITE" "$@"
-status=$?
-if mkdir "$MUTATE_ONCE" 2>/dev/null; then
-  "$REAL_SQLITE" "$MUTATE_DB" "INSERT INTO message VALUES ('m2','s1',1500,json_object('role','assistant')); INSERT INTO part VALUES ('part-m2','s1','m2',1500,json_object('type','text','text','concurrent message'));"
-fi
-exit $status
-`)
-  const env = {
-    ...fixture.env,
-    REAL_SQLITE: realSqlite,
-    SQLITE_LOG: log,
-    MUTATE_ONCE: once,
-    MUTATE_DB: fixture.databasePath,
-  }
-  const result = run(["__buildcache"], env)
-  assert.equal(result.status, 0, result.stderr)
-  assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 2)
-  assert.match(readFileSync(result.stdout.trim(), "utf8"), /concurrent message/)
-})
-
-test("serializes concurrent ordinary searches through the advisory lock", async () => {
-  const fixture = setup()
-  const log = join(fixture.root, "sqlite.log")
-  const once = join(fixture.root, "delayed")
-  writeExecutable(join(fixture.bin, "sqlite3"), `#!/bin/bash
-printf 'query\n' >> "$SQLITE_LOG"
-if mkdir "$DELAY_ONCE" 2>/dev/null; then sleep 0.5; fi
-exec "$REAL_SQLITE" "$@"
-`)
-  const env = {
-    ...fixture.env,
-    REAL_SQLITE: realSqlite,
-    SQLITE_LOG: log,
-    DELAY_ONCE: once,
-  }
-  const runAsync = () => new Promise((resolveRun) => {
-    const child = spawn(script, [], { env, stdio: "ignore" })
-    child.on("close", (status) => resolveRun(status))
+  write(fixture, (database) => {
+    for (let index = 0; index < 20; index++) {
+      addSession(database, `ses_${index}`, { directory: fixture.project })
+      addMessage(database, `ses_${index}`, 1, 1000 + index, "user", { text: `text ${index}` })
+    }
   })
-  assert.deepEqual(await Promise.all([runAsync(), runAsync()]), [0, 0])
-  assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 1)
-  assert.equal(readFileSync(fixture.capture, "utf8").trim().split("\n").length, 2)
+  const env = { ...fixture.env, OCG_EAGER: "1", OCG_BATCH: "1", OCG_PAUSE: "30" }
+  const started = Date.now()
+  const status = await new Promise((resolveRun) => {
+    const child = spawn(script, ["text"], { env, stdio: "ignore" })
+    child.on("close", resolveRun)
+  })
+  assert.equal(status, 0)
+  assert.ok(Date.now() - started < 8_000, `picker exit took ${Date.now() - started}ms`)
+  assert.match(readFileSync(fixture.capture, "utf8"), /--session ses_19/)
 })
 
-test("invalidates a cache when the process stops between cache and stamp commits", () => {
+test("prints a transcript and explains a database without V2 history", () => {
   const fixture = setup()
-  const initial = run(["__buildcache"], fixture.env)
-  assert.equal(initial.status, 0, initial.stderr)
-  const database = new DatabaseSync(fixture.databasePath)
-  addMessage(database, "m3", 1700, "post-crash message")
+  write(fixture, (database) => {
+    addSession(database, "ses_a", { directory: fixture.project })
+    addMessage(database, "ses_a", 1, 1000, "user", { text: "question" })
+    addMessage(database, "ses_a", 2, 1100, "assistant", assistant("answer"))
+  })
+  const transcript = run(["__transcript", "ses_a"], fixture.env)
+  assert.equal(transcript.status, 0, transcript.stderr)
+  assert.equal(transcript.stdout, "### user\nquestion\n\n### assistant\nanswer\n")
+
+  const legacy = join(fixture.root, "legacy.db")
+  const database = new DatabaseSync(legacy)
+  database.exec("CREATE TABLE session (id TEXT PRIMARY KEY)")
   database.close()
-
-  const failed = run(["__buildcache"], { ...fixture.env, OCG_TEST_FAIL_AFTER_CACHE_COMMIT: "1" })
-  assert.equal(failed.status, 75)
-  const recovered = run(["__buildcache"], fixture.env)
-  assert.equal(recovered.status, 0, recovered.stderr)
-  assert.match(readFileSync(recovered.stdout.trim(), "utf8"), /post-crash message/)
-})
-
-test("releases the advisory lock after uncatchable process termination", async () => {
-  const fixture = setup()
-  const entered = join(fixture.root, "sqlite-entered")
-  writeExecutable(join(fixture.bin, "sqlite3"), `#!/bin/bash
-touch "$SQLITE_ENTERED"
-sleep 30
-`)
-  const child = spawn(script, ["__buildcache"], {
-    detached: true,
-    env: { ...fixture.env, SQLITE_ENTERED: entered },
-    stdio: "ignore",
-  })
-  for (let attempt = 0; attempt < 100 && !existsSync(entered); attempt++) {
-    await new Promise((resolveWait) => setTimeout(resolveWait, 20))
-  }
-  assert.equal(existsSync(entered), true)
-  process.kill(-child.pid, "SIGKILL")
-  await new Promise((resolveClose) => child.on("close", resolveClose))
-
-  writeExecutable(join(fixture.bin, "sqlite3"), `#!/bin/bash
-exec ${JSON.stringify(realSqlite)} "$@"
-`)
-  const recovered = run(["__buildcache"], fixture.env)
-  assert.equal(recovered.status, 0, recovered.stderr)
-})
-
-test("rejects forged private-builder descriptors", () => {
-  const fixture = setup()
-  const stdoutFd = spawnSync("bash", ["-c", `OCG_CACHE_LOCK_FD=1 ${JSON.stringify(script)} __ensure_cache_locked`], {
-    env: fixture.env,
-    encoding: "utf8",
-  })
-  assert.notEqual(stdoutFd.status, 0)
-
-  const fake = join(fixture.root, "fake.lock")
-  const fakeFd = spawnSync("bash", ["-c", `exec 9>${JSON.stringify(fake)}; OCG_CACHE_LOCK_FD=9 ${JSON.stringify(script)} __ensure_cache_locked`], {
-    env: fixture.env,
-    encoding: "utf8",
-  })
-  assert.notEqual(fakeFd.status, 0)
+  const refused = run(["__stream"], { ...fixture.env, OPENCODE_DB_PATH: legacy })
+  assert.equal(refused.status, 1)
+  assert.match(refused.stderr, /requires OpenCode V2/)
 })

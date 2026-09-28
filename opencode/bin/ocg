@@ -1,267 +1,432 @@
-#!/usr/bin/env bash
-# DEPRECATED: ocg reads only OpenCode V1's session/message/part tables, so
-# sessions created by OpenCode V2 (session_v2/session_message) never appear.
-# It also rebuilds its full-text cache from the whole database whenever the
-# database changes. It needs a V2 port and lazy loading before it is reliable.
-set -euo pipefail
-umask 077
+#!/usr/bin/env python3
+"""ocg - search OpenCode chat history and resume a session.
 
-SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
-DB="${OPENCODE_DB_PATH:-${OPENCODE_DB:-$DATA_HOME/opencode/opencode.db}}"
-CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/opencode-search"
-CACHE_TMP=""
-STAMP_TMP=""
+Usage:
+  ocg [query]                 search chat text, newest sessions first
+  ocg -s|--sessions [query]   pick a session by project, title, and date
 
-cleanup() {
-  [ -z "$CACHE_TMP" ] || rm -f "$CACHE_TMP"
-  [ -z "$STAMP_TMP" ] || rm -f "$STAMP_TMP"
-}
-trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+Keys: Enter resumes the session in its directory, Ctrl-Y prints its id, and
+Ctrl-/ toggles the preview. Search terms match exact substrings; prefix a term
+with ! to exclude it.
 
-die() { printf 'ocg: %s\n' "$1" >&2; exit 1; }
+The OpenCode V2 database is opened read-only. Results stream in newest first
+while older sessions keep loading at low CPU priority. Each session's text is
+cached under $XDG_CACHE_HOME/opencode-search and read again only after that
+session's messages change. After the first OCG_EAGER uncached sessions
+(default 50), sessions are read OCG_BATCH at a time (default 10) with OCG_PAUSE
+seconds between batches (default 0.25).
+"""
 
-[ -f "$DB" ] || die "opencode db not found at $DB"
-command -v sqlite3 >/dev/null || die "sqlite3 not found"
-command -v fzf >/dev/null || die "fzf not found"
-command -v rg >/dev/null || die "rg (ripgrep) not found"
+import hashlib
+import os
+import re
+import shlex
+import shutil
+import sqlite3
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from collections import deque
+from datetime import datetime
+from urllib.request import pathname2url
 
-DB=$(python3 - "$DB" <<'PY'
-import os, sys
-print(os.path.realpath(sys.argv[1]))
-PY
+SELF = os.path.realpath(__file__)
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+LEGACY_CACHE_FILES = ("messages.tsv", "messages.stamp", "build.lock")
+STALE_TEMPORARY_SECONDS = 86_400
+
+SESSIONS_SQL = """
+WITH RECURSIVE
+activity AS (
+  SELECT session_id, max(time_updated) AS last, count(*) AS messages
+  FROM session_message
+  GROUP BY session_id
+),
+tree(id, root) AS (
+  SELECT id, id FROM session_v2
+  WHERE parent_id IS NULL OR parent_id NOT IN (SELECT id FROM session_v2)
+  UNION
+  SELECT child.id, tree.root FROM session_v2 AS child JOIN tree ON child.parent_id = tree.id
 )
-WAL="$DB-wal"
-CACHE_ID=$(printf '%s' "$DB" | cksum | awk '{print $1}')
-CACHE_DIR="$CACHE_ROOT/$CACHE_ID"
-CACHE="$CACHE_DIR/messages.tsv"
-STAMP="$CACHE_DIR/messages.stamp"
-LOCK="$CACHE_DIR/build.lock"
-mkdir -p "$CACHE_DIR"
-chmod 700 "$CACHE_ROOT" "$CACHE_DIR" 2>/dev/null || true
+SELECT s.id, tree.root, root.directory, COALESCE(project.name, ''),
+       COALESCE(root.title, ''), COALESCE(s.title, ''), activity.last, activity.messages
+FROM tree
+JOIN session_v2 AS s ON s.id = tree.id
+JOIN session_v2 AS root ON root.id = tree.root
+JOIN activity ON activity.session_id = s.id
+LEFT JOIN project ON project.id = root.project_id
+WHERE s.time_archived IS NULL AND root.time_archived IS NULL
+ORDER BY activity.last DESC, s.id
+"""
 
-sql() { sqlite3 -readonly -noheader -separator $'\t' "file:$DB?mode=ro" "$1"; }
+MESSAGES_SQL = """
+SELECT sm.session_id, sm.type,
+       CASE sm.type
+         WHEN 'user' THEN json_extract(sm.data, '$.text')
+         ELSE (
+           SELECT group_concat(json_extract(part.value, '$.text'), char(10))
+           FROM json_each(sm.data, '$.content') AS part
+           WHERE json_extract(part.value, '$.type') = 'text'
+             AND COALESCE(json_extract(part.value, '$.synthetic'), 0) = 0
+         )
+       END
+FROM session_message AS sm
+WHERE sm.session_id IN ({}) AND sm.type IN ('user', 'assistant')
+ORDER BY sm.session_id, sm.seq
+"""
 
-db_stamp() {
-  python3 - "$DB" "$WAL" <<'PY'
-import os, sys
-for path in sys.argv[1:]:
+
+class Session:
+    __slots__ = ("id", "root", "directory", "project", "root_title", "title", "last", "messages")
+
+    def __init__(self, row):
+        (self.id, self.root, self.directory, self.project,
+         self.root_title, self.title, self.last, self.messages) = row
+
+    def name(self):
+        return self.project or os.path.basename(self.directory.rstrip("/")) or self.directory
+
+    def label(self, root_only=False):
+        label = f"{self.name()} · {self.root_title}"
+        if self.id != self.root and not root_only:
+            label += f" › {self.title}"
+        return f"{day(self.last)}  {one_line(label)}"
+
+    def fields(self, root_only=False):
+        source = self.root if root_only else self.id
+        return f"{self.root}\t{one_line(self.directory)}\t{source}\t{self.label(root_only)}"
+
+
+def die(message):
+    print(f"ocg: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def one_line(text):
+    return text.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+
+
+def day(milliseconds):
+    return datetime.fromtimestamp(milliseconds / 1000).strftime("%Y-%m-%d")
+
+
+def setting(name, default, kind):
+    value = os.environ.get(name, "")
+    if not value:
+        return default
     try:
-        stat = os.stat(path, follow_symlinks=False)
-    except FileNotFoundError:
-        print(f"{path}\tmissing")
-        continue
-    print(f"{path}\t{stat.st_dev}\t{stat.st_ino}\t{stat.st_size}\t{stat.st_mtime_ns}\t{stat.st_ctime_ns}")
-PY
-}
+        number = kind(value)
+    except ValueError:
+        die(f"{name} must be a number")
+    if number < 0:
+        die(f"{name} must not be negative")
+    return number
 
-cache_fresh() {
-  [ -f "$CACHE" ] && [ -f "$STAMP" ] || return 1
-  [ "$(cat "$STAMP")" = "$(db_stamp)" ]
-}
 
-durable() {
-  python3 - "$1" "$CACHE_DIR" <<'PY'
-import os, sys
-with open(sys.argv[1], "rb") as stream:
-    os.fsync(stream.fileno())
-directory = os.open(sys.argv[2], os.O_RDONLY)
-try:
-    os.fsync(directory)
-finally:
-    os.close(directory)
-PY
-}
+def database_path():
+    data_home = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    return (os.environ.get("OPENCODE_DB_PATH") or os.environ.get("OPENCODE_DB")
+            or os.path.join(data_home, "opencode", "opencode.db"))
 
-durable_dir() {
-  python3 - "$CACHE_DIR" <<'PY'
-import os, sys
-directory = os.open(sys.argv[1], os.O_RDONLY)
-try:
-    os.fsync(directory)
-finally:
-    os.close(directory)
-PY
-}
 
-validate_lock() {
-  local fd="${OCG_CACHE_LOCK_FD:-}"
-  [[ "$fd" =~ ^[0-9]+$ ]] || die "private cache builder requires an inherited lock"
-  python3 - "$fd" "$LOCK" <<'PY'
-import fcntl, os, stat, sys
-fd = int(sys.argv[1])
-expected = os.stat(sys.argv[2], follow_symlinks=False)
-actual = os.fstat(fd)
-if not stat.S_ISREG(expected.st_mode) or (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
-    raise SystemExit("invalid cache lock descriptor")
-try:
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-except BlockingIOError:
-    raise SystemExit("cache lock is not held by this process")
-PY
-}
+def connect():
+    path = database_path()
+    if not os.path.isfile(path):
+        die(f"opencode db not found at {path}")
+    real = os.path.realpath(path)
+    try:
+        db = sqlite3.connect(f"file:{pathname2url(real)}?mode=ro", uri=True)
+        db.execute("PRAGMA query_only = ON")
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    except sqlite3.Error as error:
+        die(f"cannot read {path}: {error}")
+    if not {"session_v2", "session_message"} <= tables:
+        die(f"{path} has no OpenCode V2 history; ocg requires OpenCode V2")
+    try:
+        db.execute("SELECT json_extract('{\"a\": 1}', '$.a')")
+    except sqlite3.OperationalError:
+        die(f"the SQLite used by {sys.executable} has no JSON support")
+    return db, real
 
-build_cache_locked() {
-  validate_lock
-  if cache_fresh; then
-    printf '%s\n' "$CACHE"
-    return
-  fi
 
-  local before after attempt
-  for attempt in 1 2 3; do
-    CACHE_TMP="$CACHE.tmp.$$.$attempt"
-    STAMP_TMP="$STAMP.tmp.$$.$attempt"
-    before=$(db_stamp)
-    sql "
-      SELECT
-        p.session_id,
-        s.directory,
-        strftime('%Y-%m-%d', s.time_updated/1000, 'unixepoch', 'localtime'),
-        replace(replace(COALESCE(NULLIF(pr.name,''), s.project_id) || ' · ' || s.title, char(9),' '), char(10),' '),
-        replace(replace(replace(json_extract(p.data,'\$.text'), char(9),' '), char(10),' '), char(13),' ')
-      FROM part p
-      JOIN message m ON m.id = p.message_id
-      JOIN session s ON s.id = p.session_id
-      LEFT JOIN project pr ON pr.id = s.project_id
-      WHERE json_extract(p.data,'\$.type') = 'text'
-        AND json_extract(p.data,'\$.text') IS NOT NULL
-        AND trim(json_extract(p.data,'\$.text')) <> ''
-      ORDER BY s.time_updated DESC, m.time_created ASC, p.time_created ASC;
-    " > "$CACHE_TMP"
-    chmod 600 "$CACHE_TMP"
-    after=$(db_stamp)
-    if [ "$before" != "$after" ]; then
-      rm -f "$CACHE_TMP"
-      CACHE_TMP=""
-      continue
-    fi
+def load_sessions(db):
+    return [Session(row) for row in db.execute(SESSIONS_SQL)]
 
-    printf '%s\n' "$after" > "$STAMP_TMP"
-    chmod 600 "$STAMP_TMP"
-    rm -f "$STAMP"
-    durable_dir
-    mv -f "$CACHE_TMP" "$CACHE"
-    CACHE_TMP=""
-    durable "$CACHE"
-    if [ "${OCG_TEST_FAIL_AFTER_CACHE_COMMIT:-0}" = "1" ]; then
-      return 75
-    fi
-    mv -f "$STAMP_TMP" "$STAMP"
-    STAMP_TMP=""
-    durable "$STAMP"
-    printf '%s\n' "$CACHE"
-    return
-  done
-  die "history changed repeatedly while building cache"
-}
 
-ensure_cache() {
-  python3 - "$LOCK" "$SELF" <<'PY'
-import fcntl, os, stat, subprocess, sys
-lock_path, script = sys.argv[1:]
-flags = os.O_CREAT | os.O_RDWR
-if hasattr(os, "O_NOFOLLOW"):
-    flags |= os.O_NOFOLLOW
-fd = os.open(lock_path, flags, 0o600)
-try:
-    os.fchmod(fd, 0o600)
-    if not stat.S_ISREG(os.fstat(fd).st_mode):
-        raise SystemExit("cache lock is not a regular file")
-    fcntl.flock(fd, fcntl.LOCK_EX)
-    env = os.environ.copy()
-    env["OCG_CACHE_LOCK_FD"] = str(fd)
-    result = subprocess.run([script, "__ensure_cache_locked"], env=env, pass_fds=(fd,))
-    raise SystemExit(result.returncode)
-finally:
-    os.close(fd)
-PY
-}
+def messages(db, session_ids):
+    placeholders = ", ".join("?" for _ in session_ids)
+    return db.execute(MESSAGES_SQL.format(placeholders), list(session_ids))
 
-_transcript() {
-  local id="$1" q="${2:-}"
-  sql "
-    SELECT char(10) || '### ' || json_extract(m.data,'\$.role') || char(10) || json_extract(p.data,'\$.text')
-    FROM part p
-    JOIN message m ON m.id = p.message_id
-    WHERE p.session_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
-      AND json_extract(p.data,'\$.type') = 'text'
-      AND json_extract(p.data,'\$.text') IS NOT NULL
-    ORDER BY m.time_created ASC, p.time_created ASC;
-  " | if [ -n "$q" ]; then rg --passthru --color=always -i -e "$q" 2>/dev/null || cat; else cat; fi
-}
 
-case "${1:-}" in
-  __transcript) shift; _transcript "$@"; exit 0 ;;
-  __buildcache) ensure_cache; exit $? ;;
-  __ensure_cache_locked) build_cache_locked; exit $? ;;
-esac
+def extract(db, session_ids):
+    texts = {session_id: [] for session_id in session_ids}
+    for session_id, _, text in messages(db, session_ids):
+        if text and text.strip():
+            texts[session_id].append(one_line(text))
+    return texts
 
-printf 'ocg: deprecated; OpenCode V2 sessions are not searched\n' >&2
 
-handle_selection() {
-  local out="$1" key line id dir
-  key=$(printf '%s\n' "$out" | sed -n '1p')
-  line=$(printf '%s\n' "$out" | sed -n '2p')
-  [ -n "$line" ] || return 0
-  id=$(printf '%s' "$line" | cut -f1)
-  dir=$(printf '%s' "$line" | cut -f2)
-  [ -n "$id" ] || return 0
+def private_directory(path):
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    info = os.lstat(path)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        die(f"refusing cache directory {path}: not a directory owned by you")
+    os.chmod(path, 0o700)
 
-  if [ "$key" = "ctrl-y" ]; then
-    printf '%s\n' "$id"
-    return 0
-  fi
 
-  if [ -n "$dir" ] && [ -d "$dir" ]; then
-    cd "$dir"
-  else
-    [ -n "$dir" ] && printf 'ocg: directory %s missing; resuming from %s\n' "$dir" "$HOME" >&2
-    cd "$HOME"
-  fi
-  exec opencode --session "$id"
-}
+class Cache:
+    def __init__(self, database):
+        cache_home = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+        os.makedirs(cache_home, exist_ok=True)
+        self.root = os.path.join(cache_home, "opencode-search")
+        database_key = os.path.join(self.root, hashlib.sha256(database.encode()).hexdigest()[:16])
+        self.directory = os.path.join(database_key, "sessions")
+        for path in (self.root, database_key, self.directory):
+            private_directory(path)
+        self.remove_legacy()
+        self.names = {}
+        for name in os.listdir(self.directory):
+            if name.endswith(".txt"):
+                self.names.setdefault(name.split(".", 1)[0], set()).add(name)
 
-sessions_mode() {
-  local init="${1:-}" src out
-  src=$(sql "
-    SELECT s.id, s.directory,
-      strftime('%Y-%m-%d',s.time_updated/1000,'unixepoch','localtime') || '  ' ||
-      replace(replace(COALESCE(NULLIF(pr.name,''),s.project_id) || ' · ' || s.title, char(9),' '), char(10),' ')
-    FROM session s LEFT JOIN project pr ON pr.id = s.project_id
-    ORDER BY s.time_updated DESC;")
-  out=$(printf '%s\n' "$src" | fzf \
-    --ansi --delimiter $'\t' --with-nth=3 --query "$init" \
-    --prompt 'sessions> ' --header 'Enter: resume   Ctrl-Y: print id' \
-    --preview "\"$SELF\" __transcript {1}" --preview-window 'right,60%,wrap' \
-    --expect ctrl-y) || return 0
-  handle_selection "$out"
-}
+    def remove_legacy(self):
+        directories = [self.root] + [
+            os.path.join(self.root, name) for name in os.listdir(self.root) if name.isdigit()
+        ]
+        for directory in directories:
+            for name in LEGACY_CACHE_FILES:
+                try:
+                    os.unlink(os.path.join(directory, name))
+                except OSError:
+                    pass
+            if directory != self.root:
+                try:
+                    os.rmdir(directory)
+                except OSError:
+                    pass
 
-content_mode() {
-  local init="${1:-}" out
-  cache_fresh || ensure_cache >/dev/null
-  [ -s "$CACHE" ] || die "no chat text found to search"
-  out=$(FZF_DEFAULT_COMMAND="cat -- $(printf '%q' "$CACHE")" fzf \
-    --ansi --disabled --delimiter $'\t' --with-nth=4,5 --query "$init" \
-    --prompt 'chat-grep> ' \
-    --header 'Enter: resume   Ctrl-Y: print id   (live ripgrep over all chats)' \
-    --bind "change:reload:rg --color=never --smart-case -- {q} $(printf '%q' "$CACHE") || true" \
-    --preview "\"$SELF\" __transcript {1} {q}" --preview-window 'right,60%,wrap' \
-    --expect ctrl-y) || return 0
-  handle_selection "$out"
-}
+    @staticmethod
+    def name(session):
+        return f"{session.id}.{session.last}-{session.messages}.txt"
 
-MODE=content
-if [ "${1:-}" = "-s" ] || [ "${1:-}" = "--sessions" ]; then
-  MODE=sessions
-  shift
-fi
+    def cached(self, session):
+        return self.name(session) in self.names.get(session.id, ())
 
-case "$MODE" in
-  sessions) sessions_mode "${*:-}" ;;
-  content) content_mode "${*:-}" ;;
-esac
+    def read(self, session):
+        try:
+            fd = os.open(os.path.join(self.directory, self.name(session)), os.O_RDONLY | NOFOLLOW)
+        except OSError:
+            return None
+        with os.fdopen(fd, encoding="utf-8", errors="replace") as stream:
+            return stream.read().splitlines()
+
+    def write(self, session, lines):
+        if not SAFE_ID.match(session.id):
+            return
+        final = self.name(session)
+        temporary = os.path.join(self.directory, f".{final}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+        try:
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                stream.write("".join(line + "\n" for line in lines))
+            os.replace(temporary, os.path.join(self.directory, final))
+        except OSError:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+            return
+        for stale in self.names.get(session.id, set()) - {final}:
+            try:
+                os.unlink(os.path.join(self.directory, stale))
+            except OSError:
+                pass
+        self.names[session.id] = {final}
+
+    def prune(self, sessions):
+        keep = {self.name(session) for session in sessions}
+        now = time.time()
+        for name in os.listdir(self.directory):
+            path = os.path.join(self.directory, name)
+            try:
+                if name.endswith(".txt") and name not in keep:
+                    os.unlink(path)
+                elif name.endswith(".tmp") and now - os.lstat(path).st_mtime > STALE_TEMPORARY_SECONDS:
+                    os.unlink(path)
+            except OSError:
+                pass
+
+
+def stream():
+    eager = setting("OCG_EAGER", 50, int)
+    batch_size = max(1, setting("OCG_BATCH", 10, int))
+    pause = setting("OCG_PAUSE", 0.25, float)
+    db, database = connect()
+    cache = Cache(database)
+    sessions = load_sessions(db)
+    pending = deque(session for session in sessions if not cache.cached(session))
+    loaded = {}
+    extracted = 0
+    out = sys.stdout.buffer
+
+    for session in sessions:
+        lines = loaded.pop(session.id, None)
+        if lines is None and cache.cached(session):
+            lines = cache.read(session)
+        if lines is None:
+            batch = [session]
+            while pending and len(batch) < batch_size:
+                candidate = pending.popleft()
+                if candidate is not session:
+                    batch.append(candidate)
+            if extracted >= eager and pause:
+                time.sleep(pause)
+            texts = extract(db, [item.id for item in batch])
+            extracted += len(batch)
+            for item in batch:
+                cache.write(item, texts[item.id])
+                loaded[item.id] = texts[item.id]
+            lines = loaded.pop(session.id)
+        if lines:
+            prefix = session.fields() + "\t"
+            out.write("".join(prefix + line + "\n" for line in lines).encode("utf-8", "replace"))
+            out.flush()
+
+    cache.prune(sessions)
+
+
+def root_sessions(sessions):
+    roots = {}
+    for session in sessions:
+        if session.root not in roots:
+            roots[session.root] = session
+    return list(roots.values())
+
+
+def highlight_terms(query):
+    terms = []
+    for token in (query or "").split():
+        if token.startswith("!") or token == "|":
+            continue
+        token = token.lstrip("'^").rstrip("$")
+        if token:
+            terms.append(token)
+    return terms
+
+
+def transcript(session_id, query):
+    db, _ = connect()
+    sections = [f"### {kind}\n{text}\n" for _, kind, text in messages(db, [session_id]) if text and text.strip()]
+    output = "\n".join(sections).encode("utf-8", "replace")
+    terms = highlight_terms(query)
+    rg = shutil.which("rg")
+    if terms and rg:
+        args = [rg, "--passthru", "--color=always", "--ignore-case", "--fixed-strings"]
+        for term in terms:
+            args += ["-e", term]
+        result = subprocess.run(args, input=output, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if result.returncode in (0, 1):
+            output = result.stdout
+    sys.stdout.buffer.write(output)
+
+
+def fzf_command(query, sessions_mode):
+    preview = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __transcript {{3}}"
+    command = [
+        "fzf", "--delimiter", "\t", "--query", query,
+        "--preview-window", "right,60%,wrap", "--bind", "ctrl-/:toggle-preview", "--expect", "ctrl-y",
+    ]
+    if sessions_mode:
+        return command + [
+            "--with-nth", "4", "--scheme", "history", "--prompt", "sessions> ",
+            "--header", "Enter: resume   Ctrl-Y: print id   Ctrl-/: preview",
+            "--preview", preview,
+        ]
+    return command + [
+        "--with-nth", "4,5", "--exact", "--no-sort", "--prompt", "chat> ",
+        "--header", "Enter: resume   Ctrl-Y: print id   Ctrl-/: preview   (newest first; older chats keep loading)",
+        "--preview", preview + " {q}",
+    ]
+
+
+def resume(output):
+    lines = output.decode("utf-8", "replace").split("\n")
+    key = lines[0]
+    selected = lines[1] if len(lines) > 1 else ""
+    if not selected:
+        return
+    fields = selected.split("\t")
+    session_id = fields[0]
+    directory = fields[1] if len(fields) > 1 else ""
+    if not session_id:
+        return
+    if key == "ctrl-y":
+        print(session_id)
+        return
+    home = os.path.expanduser("~")
+    if directory and os.path.isdir(directory):
+        target = directory
+    else:
+        if directory:
+            print(f"ocg: directory {directory} missing; resuming from {home}", file=sys.stderr)
+        target = home
+    os.chdir(target)
+    os.environ["PWD"] = target
+    os.execvp("opencode", ["opencode", "--session", session_id])
+
+
+def pick(query, sessions_mode):
+    if not shutil.which("fzf"):
+        die("fzf not found")
+    db, database = connect()
+    Cache(database)
+    if sessions_mode:
+        rows = "".join(session.fields(root_only=True) + "\n" for session in root_sessions(load_sessions(db)))
+        db.close()
+        picked = subprocess.run(fzf_command(query, True), input=rows.encode("utf-8", "replace"),
+                                stdout=subprocess.PIPE)
+    else:
+        db.close()
+        with tempfile.TemporaryFile() as errors:
+            loader = subprocess.Popen([sys.executable, SELF, "__stream"], stdout=subprocess.PIPE,
+                                      stderr=errors, preexec_fn=lambda: os.nice(10))
+            try:
+                picked = subprocess.run(fzf_command(query, False), stdin=loader.stdout, stdout=subprocess.PIPE)
+            finally:
+                loader.stdout.close()
+                loader.terminate()
+                loader.wait()
+            errors.seek(0)
+            sys.stderr.write(errors.read().decode("utf-8", "replace"))
+    if picked.returncode == 0:
+        resume(picked.stdout)
+
+
+def main(argv):
+    os.umask(0o077)
+    command = argv[0] if argv else ""
+    if command == "__stream":
+        try:
+            stream()
+        except BrokenPipeError:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        return
+    if command == "__transcript":
+        transcript(argv[1] if len(argv) > 1 else "", argv[2] if len(argv) > 2 else "")
+        return
+    if command in ("-h", "--help"):
+        print(__doc__.strip())
+        return
+    sessions_mode = command in ("-s", "--sessions")
+    pick(" ".join(argv[1:] if sessions_mode else argv), sessions_mode)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
