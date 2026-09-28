@@ -22,6 +22,10 @@ return {
         if not vim.g.autoformat_enabled then
           return
         end
+        local filetype = vim.bo[bufnr].filetype
+        if vim.tbl_contains({ 'java', 'kotlin' }, filetype) then
+          return
+        end
         return {
           timeout_ms = 1000,
           lsp_fallback = true,
@@ -39,10 +43,23 @@ return {
         python = { 'ruff_format' },
         markdown = { 'prettierd' },
         astro = { 'prettierd' },
-        java = { 'clang-format' },
+        kotlin = { 'ktlint' },
         php = { 'pretty-php' },
         yaml = { 'prettierd' },
         nginx = { 'nginxfmt' },
+      },
+      formatters = {
+        stylua = {
+          command = vim.fn.exepath 'stylua',
+        },
+        ktlint = {
+          prepend_args = function(_, ctx)
+            return {
+              '--editorconfig=' .. vim.fn.stdpath 'config' .. '/kotlin.editorconfig',
+              '--stdin-path=' .. ctx.filename,
+            }
+          end,
+        },
       },
     },
     config = function(_, opts)

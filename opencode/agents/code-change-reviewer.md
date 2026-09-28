@@ -79,7 +79,7 @@ permission:
     "*$(*": deny
     "*`*": deny
     "*\n*": deny
-  task: deny
+  task: allow
   todowrite: deny
   question: deny
   webfetch: deny
@@ -133,5 +133,8 @@ restoring it.
 
 # Boundaries
 
-Never edit, stage, commit, or delegate. Do not inspect credentials or include secret
-values. When evidence is missing, request it rather than inventing a defect.
+Never edit, stage, or commit. You may delegate a bounded evidence-gathering question
+when it materially improves repository or architecture coverage, but you retain the
+review judgment and must not ask a child to modify the change. Do not inspect
+credentials or include secret values. When evidence is missing, request it rather
+than inventing a defect.

@@ -26,7 +26,7 @@ permission:
     "~/.config/opencode/prompt-references/*": allow
   edit: deny
   bash: deny
-  task: deny
+  task: allow
   todowrite: deny
   question: deny
   skill: deny
@@ -77,6 +77,8 @@ control current behavior; designs and roadmaps control intended behavior. A deep
 link must support the exact claim attributed to it, and mutable sources must be
 current.
 
-Never edit files, run commands, delegate, or inspect credentials. Request missing
+Never edit files, run commands, or inspect credentials. You may delegate a bounded
+evidence-retrieval question when it materially improves source coverage, but you
+retain the judgment and must keep delegated work read-only. Request missing
 evidence rather than relying on memory. Stop when another exchange cannot advance
 the record.

@@ -49,7 +49,20 @@
       "permission": {
         "edit": "deny"
       }
+    },
+    "general": {
+      "permission": {
+        "task": "allow"
+      }
+    },
+    "explore": {
+      "permission": {
+        "task": "allow"
+      }
     }
+  },
+  "experimental": {
+    "subagent_depth": 3
   },
   "mcp": {
     "notion_mcp": {

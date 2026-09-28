@@ -9,5 +9,8 @@
     "thinking": "show",
     "permissions": "autoaccept"
   },
-  "animations": true
+  "animations": true,
+  "tabs": {
+    "layout": "vertical"
+  }
 }

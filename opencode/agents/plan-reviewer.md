@@ -24,7 +24,7 @@ permission:
   websearch: deny
   edit: deny
   bash: deny
-  task: deny
+  task: allow
   external_directory:
     "*": deny
     "~/.config/opencode/prompt-references/*": allow
