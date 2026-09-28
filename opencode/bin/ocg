@@ -2,22 +2,25 @@
 """ocg - search OpenCode chat history and resume a session.
 
 Usage:
-  ocg [query]                 search chat text, newest sessions first
+  ocg [query]                 search chat messages, newest first
   ocg -s|--sessions [query]   pick a session by project, title, and date
 
+Each result shows who wrote a message, when, and in which session, with the
+matching text below. The preview opens the conversation at that message.
 Keys: Enter resumes the session in its directory, Ctrl-Y prints its id, and
 Ctrl-/ toggles the preview. Search terms match exact substrings; prefix a term
 with ! to exclude it.
 
 The OpenCode V2 database is opened read-only. Results stream in newest first
-while older sessions keep loading at low CPU priority. Each session's text is
-cached under $XDG_CACHE_HOME/opencode-search and read again only after that
-session's messages change. After the first OCG_EAGER uncached sessions
-(default 50), sessions are read OCG_BATCH at a time (default 10) with OCG_PAUSE
-seconds between batches (default 0.25).
+while older sessions keep loading at low CPU priority. Each session's messages
+are cached under $XDG_CACHE_HOME/opencode-search and read again only after that
+session changes. After the first OCG_EAGER uncached sessions (default 50),
+sessions are read OCG_BATCH at a time (default 10) with OCG_PAUSE seconds
+between batches (default 0.25). Requires fzf 0.56 or newer.
 """
 
 import hashlib
+import json
 import os
 import re
 import shlex
@@ -37,6 +40,32 @@ NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 LEGACY_CACHE_FILES = ("messages.tsv", "messages.stamp", "build.lock")
 STALE_TEMPORARY_SECONDS = 86_400
+MINIMUM_FZF = (0, 56)
+PREVIEW_LINES = 600
+MESSAGE_LINES = 200
+CONTEXT_LINES = 4
+PRETTY_JSON_BYTES = 200_000
+
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+WHITESPACE = re.compile(r"\s+")
+ANSI = re.compile(r"(\x1b\[[0-9;]*m)")
+INLINE = re.compile(r"(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\[([^\]\n]+)\]\(([^)\s]+)\))")
+FENCE = re.compile(r"^\s*(```|~~~)\s*([\w+-]*)")
+HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
+RULE = re.compile(r"^\s*([-*_])(\s*\1){2,}\s*$")
+QUOTE = re.compile(r"^\s*>\s?(.*)$")
+BULLET = re.compile(r"^(\s*)[-*+]\s+(.*)$")
+TABLE_SEPARATOR = re.compile(r"^\s*\|?[\s:|-]+\|?\s*$")
+JSON_KEY = re.compile(r'^(\s*)("(?:[^"\\]|\\.)*")(\s*:)')
+
+DIM, UNDIM = "\033[2m", "\033[22m"
+BOLD = "\033[1m"
+SPEAKERS = {
+    ("user", False): ("you", "1;36"),
+    ("assistant", False): ("assistant", "1;32"),
+    ("user", True): ("task", "1;35"),
+    ("assistant", True): ("subagent", "1;33"),
+}
 
 SESSIONS_SQL = """
 WITH RECURSIVE
@@ -63,11 +92,11 @@ ORDER BY activity.last DESC, s.id
 """
 
 MESSAGES_SQL = """
-SELECT sm.session_id, sm.type,
+SELECT sm.session_id, sm.seq, sm.time_created, sm.type,
        CASE sm.type
          WHEN 'user' THEN json_extract(sm.data, '$.text')
          ELSE (
-           SELECT group_concat(json_extract(part.value, '$.text'), char(10))
+           SELECT group_concat(json_extract(part.value, '$.text'), char(10) || char(10))
            FROM json_each(sm.data, '$.content') AS part
            WHERE json_extract(part.value, '$.type') = 'text'
              AND COALESCE(json_extract(part.value, '$.synthetic'), 0) = 0
@@ -76,6 +105,15 @@ SELECT sm.session_id, sm.type,
 FROM session_message AS sm
 WHERE sm.session_id IN ({}) AND sm.type IN ('user', 'assistant')
 ORDER BY sm.session_id, sm.seq
+"""
+
+SESSION_SQL = """
+SELECT s.id, s.parent_id, s.directory, COALESCE(s.title, ''), COALESCE(project.name, ''),
+       COALESCE(parent.title, '')
+FROM session_v2 AS s
+LEFT JOIN project ON project.id = s.project_id
+LEFT JOIN session_v2 AS parent ON parent.id = s.parent_id
+WHERE s.id = ?
 """
 
 
@@ -87,17 +125,19 @@ class Session:
          self.root_title, self.title, self.last, self.messages) = row
 
     def name(self):
-        return self.project or os.path.basename(self.directory.rstrip("/")) or self.directory
+        return project_name(self.project, self.directory)
 
-    def label(self, root_only=False):
-        label = f"{self.name()} · {self.root_title}"
-        if self.id != self.root and not root_only:
-            label += f" › {self.title}"
-        return f"{day(self.last)}  {one_line(label)}"
+    def child(self):
+        return self.id != self.root
 
-    def fields(self, root_only=False):
-        source = self.root if root_only else self.id
-        return f"{self.root}\t{one_line(self.directory)}\t{source}\t{self.label(root_only)}"
+    def title_label(self):
+        title = self.root_title or "untitled"
+        if self.child():
+            title += f" › {self.title or 'subagent'}"
+        return clean(title)
+
+    def fields(self, source, seq=""):
+        return f"{self.root}\t{clean(self.directory)}\t{source}\t{seq}\t"
 
 
 def die(message):
@@ -105,12 +145,22 @@ def die(message):
     sys.exit(1)
 
 
-def one_line(text):
-    return text.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+def clean(text):
+    return WHITESPACE.sub(" ", CONTROL.sub(" ", text)).strip()
 
 
-def day(milliseconds):
-    return datetime.fromtimestamp(milliseconds / 1000).strftime("%Y-%m-%d")
+def project_name(project, directory):
+    return project or os.path.basename(directory.rstrip("/")) or directory
+
+
+def when(milliseconds, with_time=True):
+    moment = datetime.fromtimestamp(milliseconds / 1000)
+    return moment.strftime("%Y-%m-%d %H:%M" if with_time else "%Y-%m-%d")
+
+
+def speaker(kind, child):
+    label, color = SPEAKERS.get((kind, child), (kind, "1"))
+    return f"\033[{color}m{label}\033[0m"
 
 
 def setting(name, default, kind):
@@ -162,11 +212,11 @@ def messages(db, session_ids):
 
 
 def extract(db, session_ids):
-    texts = {session_id: [] for session_id in session_ids}
-    for session_id, _, text in messages(db, session_ids):
+    found = {session_id: [] for session_id in session_ids}
+    for session_id, seq, created, kind, text in messages(db, session_ids):
         if text and text.strip():
-            texts[session_id].append(one_line(text))
-    return texts
+            found[session_id].append((str(seq), str(created), kind, clean(text)))
+    return found
 
 
 def private_directory(path):
@@ -181,6 +231,8 @@ def private_directory(path):
 
 
 class Cache:
+    SUFFIX = ".tsv"
+
     def __init__(self, database):
         cache_home = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
         os.makedirs(cache_home, exist_ok=True)
@@ -192,7 +244,7 @@ class Cache:
         self.remove_legacy()
         self.names = {}
         for name in os.listdir(self.directory):
-            if name.endswith(".txt"):
+            if name.endswith(self.SUFFIX):
                 self.names.setdefault(name.split(".", 1)[0], set()).add(name)
 
     def remove_legacy(self):
@@ -210,10 +262,15 @@ class Cache:
                     os.rmdir(directory)
                 except OSError:
                     pass
+        for name in os.listdir(self.directory):
+            if name.endswith(".txt"):
+                try:
+                    os.unlink(os.path.join(self.directory, name))
+                except OSError:
+                    pass
 
-    @staticmethod
-    def name(session):
-        return f"{session.id}.{session.last}-{session.messages}.txt"
+    def name(self, session):
+        return f"{session.id}.{session.last}-{session.messages}{self.SUFFIX}"
 
     def cached(self, session):
         return self.name(session) in self.names.get(session.id, ())
@@ -224,9 +281,10 @@ class Cache:
         except OSError:
             return None
         with os.fdopen(fd, encoding="utf-8", errors="replace") as stream:
-            return stream.read().splitlines()
+            rows = [line.rstrip("\n").split("\t", 3) for line in stream]
+        return [tuple(row) for row in rows if len(row) == 4]
 
-    def write(self, session, lines):
+    def write(self, session, rows):
         if not SAFE_ID.match(session.id):
             return
         final = self.name(session)
@@ -234,7 +292,7 @@ class Cache:
         try:
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                stream.write("".join(line + "\n" for line in lines))
+                stream.write("".join("\t".join(row) + "\n" for row in rows))
             os.replace(temporary, os.path.join(self.directory, final))
         except OSError:
             try:
@@ -255,12 +313,21 @@ class Cache:
         for name in os.listdir(self.directory):
             path = os.path.join(self.directory, name)
             try:
-                if name.endswith(".txt") and name not in keep:
+                if name.endswith(self.SUFFIX) and name not in keep:
                     os.unlink(path)
                 elif name.endswith(".tmp") and now - os.lstat(path).st_mtime > STALE_TEMPORARY_SECONDS:
                     os.unlink(path)
             except OSError:
                 pass
+
+
+def message_items(session, rows):
+    items = []
+    prefix_title = f"{DIM}·{UNDIM} {clean(session.name())} {DIM}·{UNDIM} {session.title_label()}"
+    for seq, created, kind, text in reversed(rows):
+        header = f"{DIM}{when(int(created))}{UNDIM}  {speaker(kind, session.child())}  {prefix_title}"
+        items.append(f"{session.fields(session.id, seq)}{header}\n{text}\0")
+    return "".join(items)
 
 
 def stream():
@@ -276,10 +343,10 @@ def stream():
     out = sys.stdout.buffer
 
     for session in sessions:
-        lines = loaded.pop(session.id, None)
-        if lines is None and cache.cached(session):
-            lines = cache.read(session)
-        if lines is None:
+        rows = loaded.pop(session.id, None)
+        if rows is None and cache.cached(session):
+            rows = cache.read(session)
+        if rows is None:
             batch = [session]
             while pending and len(batch) < batch_size:
                 candidate = pending.popleft()
@@ -287,29 +354,32 @@ def stream():
                     batch.append(candidate)
             if extracted >= eager and pause:
                 time.sleep(pause)
-            texts = extract(db, [item.id for item in batch])
+            found = extract(db, [item.id for item in batch])
             extracted += len(batch)
             for item in batch:
-                cache.write(item, texts[item.id])
-                loaded[item.id] = texts[item.id]
-            lines = loaded.pop(session.id)
-        if lines:
-            prefix = session.fields() + "\t"
-            out.write("".join(prefix + line + "\n" for line in lines).encode("utf-8", "replace"))
+                cache.write(item, found[item.id])
+                loaded[item.id] = found[item.id]
+            rows = loaded.pop(session.id)
+        if rows:
+            out.write(message_items(session, rows).encode("utf-8", "replace"))
             out.flush()
 
     cache.prune(sessions)
 
 
-def root_sessions(sessions):
+def session_items(sessions):
     roots = {}
     for session in sessions:
         if session.root not in roots:
             roots[session.root] = session
-    return list(roots.values())
+    items = []
+    for session in roots.values():
+        label = f"{DIM}{when(session.last, with_time=False)}{UNDIM}  {BOLD}{clean(session.name())}{UNDIM}"
+        items.append(f"{session.fields(session.root)}{label}  {clean(session.root_title or 'untitled')}\0")
+    return "".join(items)
 
 
-def highlight_terms(query):
+def query_terms(query):
     terms = []
     for token in (query or "").split():
         if token.startswith("!") or token == "|":
@@ -320,45 +390,191 @@ def highlight_terms(query):
     return terms
 
 
-def transcript(session_id, query):
+def highlighter(query):
+    terms = sorted(query_terms(query), key=len, reverse=True)
+    if not terms:
+        return lambda line: line
+    pattern = re.compile("|".join(re.escape(term) for term in terms), re.IGNORECASE)
+
+    def highlight(line):
+        parts = ANSI.split(line)
+        for index in range(0, len(parts), 2):
+            parts[index] = pattern.sub(lambda match: f"\033[7m{match.group(0)}\033[27m", parts[index])
+        return "".join(parts)
+    return highlight
+
+
+def match_line(body, terms):
+    plain = [ANSI.sub("", line).lower() for line in body]
+    lowered = [term.lower() for term in terms]
+    for position, line in enumerate(plain):
+        if all(term in line for term in lowered):
+            return position
+    longest = max(lowered, key=len)
+    return next((position for position, line in enumerate(plain) if longest in line), 0)
+
+
+def inline(text):
+    def styled(match):
+        if match.group(1):
+            return f"\033[33m{match.group(1)[1:-1]}\033[39m"
+        if match.group(2):
+            return f"{BOLD}{match.group(2)[2:-2]}{UNDIM}"
+        return f"\033[4m{match.group(4)}\033[24m {DIM}({match.group(5)}){UNDIM}"
+    return INLINE.sub(styled, text)
+
+
+def pretty_json(text):
+    candidate = text.strip()
+    if not candidate or candidate[0] not in "{[" or len(candidate) > PRETTY_JSON_BYTES:
+        return None
+    try:
+        value = json.loads(candidate)
+    except ValueError:
+        return None
+    if not isinstance(value, (dict, list)):
+        return None
+    lines = json.dumps(value, indent=2, ensure_ascii=False).split("\n")
+    return [JSON_KEY.sub(lambda match: f"{match.group(1)}\033[36m{match.group(2)}\033[39m{match.group(3)}", line)
+            for line in lines]
+
+
+def code_block(lines, language):
+    body = pretty_json("\n".join(lines)) or [f"\033[33m{line}\033[39m" for line in lines]
+    label = [f"{DIM}{language}{UNDIM}"] if language else []
+    return label + [f"{DIM}│{UNDIM} {line}" for line in body]
+
+
+def markdown_line(line, width):
+    if not line.strip():
+        return ""
+    heading = HEADING.match(line)
+    if heading:
+        underline = "\033[4m" if len(heading.group(1)) <= 2 else ""
+        return f"{BOLD}{underline}{inline(heading.group(2))}\033[0m"
+    if RULE.match(line):
+        return f"{DIM}{'─' * min(width, 60)}{UNDIM}"
+    quote = QUOTE.match(line)
+    if quote:
+        return f"{DIM}│{UNDIM} {inline(quote.group(1))}"
+    bullet = BULLET.match(line)
+    if bullet:
+        return f"{bullet.group(1)}• {inline(bullet.group(2))}"
+    if line.lstrip().startswith("|"):
+        if TABLE_SEPARATOR.match(line):
+            return f"{DIM}{line}{UNDIM}"
+        return f"{DIM}│{UNDIM}".join(inline(cell) for cell in line.split("|"))
+    return inline(line)
+
+
+def render_message(text, width):
+    whole = pretty_json(text)
+    if whole:
+        return whole
+    rendered, code, language, fenced = [], [], "", False
+    for line in text.split("\n"):
+        line = CONTROL.sub(" ", line.replace("\t", "    "))
+        fence = FENCE.match(line)
+        if fence and not fenced:
+            fenced, code, language = True, [], fence.group(2)
+            continue
+        if fence and fenced:
+            rendered += code_block(code, language)
+            fenced = False
+            continue
+        if fenced:
+            code.append(line)
+        else:
+            rendered.append(markdown_line(line, width))
+    if fenced:
+        rendered += code_block(code, language)
+    return rendered
+
+
+def preview(session_id, focus, query):
+    width = max(20, int(os.environ.get("FZF_PREVIEW_COLUMNS") or 80) - 2)
     db, _ = connect()
-    sections = [f"### {kind}\n{text}\n" for _, kind, text in messages(db, [session_id]) if text and text.strip()]
-    output = "\n".join(sections).encode("utf-8", "replace")
-    terms = highlight_terms(query)
-    rg = shutil.which("rg")
-    if terms and rg:
-        args = [rg, "--passthru", "--color=always", "--ignore-case", "--fixed-strings"]
-        for term in terms:
-            args += ["-e", term]
-        result = subprocess.run(args, input=output, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        if result.returncode in (0, 1):
-            output = result.stdout
-    sys.stdout.buffer.write(output)
+    session = db.execute(SESSION_SQL, (session_id,)).fetchone()
+    if not session:
+        print("Session not found.")
+        return
+    _, parent, directory, title, project, parent_title = session
+    rows = [(seq, created, kind, text) for _, seq, created, kind, text in messages(db, [session_id])
+            if text and text.strip()]
+    highlight = highlighter(query)
+    terms = query_terms(query)
+    out = [f"{BOLD}{clean(title) or 'untitled'}{UNDIM}",
+           f"{DIM}{clean(project_name(project, directory))} · {clean(directory)}{UNDIM}"]
+    if parent:
+        out.append(f"{DIM}subagent session of: {clean(parent_title) or parent}{UNDIM}")
+    out.append("")
+    index = next((position for position, row in enumerate(rows) if str(row[0]) == focus), None)
+    start = max(0, index - 1) if index is not None else 0
+    if start:
+        out.append(f"{DIM}··· {start} earlier message{'s' if start != 1 else ''}{UNDIM}")
+        out.append("")
+    shown = start
+    for position in range(start, len(rows)):
+        if len(out) >= PREVIEW_LINES:
+            break
+        seq, created, kind, text = rows[position]
+        focused = position == index
+        mark = "\033[35m▌\033[39m " if focused else "  "
+        out.append(f"{mark}{speaker(kind, bool(parent))}  {DIM}{when(created)}{UNDIM}")
+        body = render_message(text, width)
+        if index is not None and position < index and len(body) > CONTEXT_LINES:
+            body = [f"{DIM}···{UNDIM}"] + body[-CONTEXT_LINES:]
+        elif focused and terms:
+            first = match_line(body, terms)
+            skipped = max(0, first - 2)
+            if skipped:
+                body = [f"{DIM}··· {skipped} line{'s' if skipped != 1 else ''} before the match{UNDIM}"] + body[skipped:]
+        if len(body) > MESSAGE_LINES:
+            hidden = len(body) - MESSAGE_LINES
+            body = body[:MESSAGE_LINES] + [f"{DIM}··· {hidden} more lines{UNDIM}"]
+        out += [mark + highlight(line) for line in body]
+        out.append("")
+        shown = position + 1
+    if shown < len(rows):
+        remaining = len(rows) - shown
+        out.append(f"{DIM}··· {remaining} later message{'s' if remaining != 1 else ''}{UNDIM}")
+    sys.stdout.buffer.write(("\n".join(out) + "\n").encode("utf-8", "replace"))
+
+
+def require_fzf():
+    fzf = shutil.which("fzf")
+    if not fzf:
+        die("fzf not found")
+    version = subprocess.run([fzf, "--version"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True).stdout
+    match = re.match(r"(\d+)\.(\d+)", version)
+    if match and (int(match.group(1)), int(match.group(2))) < MINIMUM_FZF:
+        die(f"fzf {'.'.join(map(str, MINIMUM_FZF))} or newer is required; found {version.split()[0]}")
 
 
 def fzf_command(query, sessions_mode):
-    preview = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __transcript {{3}}"
+    preview_command = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __preview {{3}} {{4}} {{q}}"
     command = [
-        "fzf", "--delimiter", "\t", "--query", query,
-        "--preview-window", "right,60%,wrap", "--bind", "ctrl-/:toggle-preview", "--expect", "ctrl-y",
+        "fzf", "--read0", "--print0", "--ansi", "--delimiter", "\t", "--with-nth", "5",
+        "--query", query, "--layout", "reverse", "--highlight-line", "--info", "inline-right",
+        "--preview", preview_command,
+        "--preview-window", "right,50%,wrap,border-left,<80(down,55%,wrap,border-top)",
+        "--bind", "ctrl-/:toggle-preview", "--expect", "ctrl-y",
     ]
     if sessions_mode:
         return command + [
-            "--with-nth", "4", "--scheme", "history", "--prompt", "sessions> ",
-            "--header", "Enter: resume   Ctrl-Y: print id   Ctrl-/: preview",
-            "--preview", preview,
+            "--scheme", "history", "--prompt", "sessions> ",
+            "--header", "Enter resume · Ctrl-Y print id · Ctrl-/ preview",
         ]
     return command + [
-        "--with-nth", "4,5", "--exact", "--no-sort", "--prompt", "chat> ",
-        "--header", "Enter: resume   Ctrl-Y: print id   Ctrl-/: preview   (newest first; older chats keep loading)",
-        "--preview", preview + " {q}",
+        "--exact", "--no-sort", "--gap", "--prompt", "chat> ",
+        "--header", "Enter resume · Ctrl-Y print id · Ctrl-/ preview · older chats keep loading",
     ]
 
 
 def resume(output):
-    lines = output.decode("utf-8", "replace").split("\n")
-    key = lines[0]
-    selected = lines[1] if len(lines) > 1 else ""
+    parts = output.decode("utf-8", "replace").split("\0")
+    key = parts[0]
+    selected = parts[1] if len(parts) > 1 else ""
     if not selected:
         return
     fields = selected.split("\t")
@@ -382,14 +598,13 @@ def resume(output):
 
 
 def pick(query, sessions_mode):
-    if not shutil.which("fzf"):
-        die("fzf not found")
+    require_fzf()
     db, database = connect()
     Cache(database)
     if sessions_mode:
-        rows = "".join(session.fields(root_only=True) + "\n" for session in root_sessions(load_sessions(db)))
+        items = session_items(load_sessions(db))
         db.close()
-        picked = subprocess.run(fzf_command(query, True), input=rows.encode("utf-8", "replace"),
+        picked = subprocess.run(fzf_command(query, True), input=items.encode("utf-8", "replace"),
                                 stdout=subprocess.PIPE)
     else:
         db.close()
@@ -418,8 +633,9 @@ def main(argv):
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
         return
-    if command == "__transcript":
-        transcript(argv[1] if len(argv) > 1 else "", argv[2] if len(argv) > 2 else "")
+    if command == "__preview":
+        arguments = argv[1:] + ["", "", ""]
+        preview(arguments[0], arguments[1], arguments[2])
         return
     if command in ("-h", "--help"):
         print(__doc__.strip())

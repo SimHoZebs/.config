@@ -39,9 +39,10 @@ function setup() {
   database.close()
 
   writeExecutable(join(bin, "fzf"), `#!/bin/bash
+if [ "$1" = "--version" ]; then echo "\${OCG_FAKE_FZF_VERSION:-0.74.0 (fake)}"; exit 0; fi
 printf '%s\\n' "$@" > "$OCG_FZF_ARGS"
-IFS= read -r line || exit 1
-printf '\\n%s\\n' "$line"
+IFS= read -r -d '' item || exit 1
+printf '\\0%s\\0' "$item"
 `)
   writeExecutable(join(bin, "opencode"), `#!/bin/bash
 printf '%s\\t%s\\n' "$PWD" "$*" >> "$OCG_CAPTURE"
@@ -89,10 +90,16 @@ function run(args, env) {
   return spawnSync(script, args, { env, encoding: "utf8" })
 }
 
+const ANSI = /\x1b\[[0-9;]*m/g
+
 function stream(env) {
   const result = run(["__stream"], env)
   assert.equal(result.status, 0, result.stderr)
-  return result.stdout.trim().split("\n").filter(Boolean).map((line) => line.split("\t"))
+  return result.stdout.split("\0").filter(Boolean).map((item) => {
+    const [root, directory, source, seq, display] = item.split("\t")
+    const [header, text] = display.split("\n")
+    return { root, directory, source, seq, header: header.replace(ANSI, ""), text }
+  })
 }
 
 function cacheDirectory(fixture) {
@@ -100,7 +107,7 @@ function cacheDirectory(fixture) {
   return join(fixture.cache, "opencode-search", databaseKey, "sessions")
 }
 
-test("streams newest sessions first and attributes subagent text to the session to resume", () => {
+test("streams newest messages first and attributes subagent text to the session to resume", () => {
   const fixture = setup()
   write(fixture, (database) => {
     addSession(database, "ses_old", { directory: fixture.project, title: "Old work" })
@@ -108,13 +115,16 @@ test("streams newest sessions first and attributes subagent text to the session 
     addSession(database, "ses_child", { parent: "ses_new", directory: "/elsewhere", title: "Child task" })
     addMessage(database, "ses_old", 1, 1000, "user", { text: "old question" })
     addMessage(database, "ses_new", 1, 2000, "user", { text: "new question" })
+    addMessage(database, "ses_new", 2, 2500, "assistant", assistant("new answer\nsecond line"))
     addMessage(database, "ses_child", 1, 3000, "assistant", assistant("child finding"))
   })
 
-  const lines = stream(fixture.env)
-  assert.deepEqual(lines.map((fields) => fields[4]), ["child finding", "new question", "old question"])
-  assert.deepEqual(lines[0].slice(0, 3), ["ses_new", fixture.project, "ses_child"])
-  assert.match(lines[0][3], /Demo · New work › Child task/)
+  const items = stream(fixture.env)
+  assert.deepEqual(items.map((item) => item.text), ["child finding", "new answer second line", "new question", "old question"])
+  assert.deepEqual([items[0].root, items[0].directory, items[0].source, items[0].seq], ["ses_new", fixture.project, "ses_child", "1"])
+  assert.match(items[0].header, /  subagent  · Demo · New work › Child task$/)
+  assert.match(items[1].header, /  assistant  · Demo · New work$/)
+  assert.match(items[2].header, /  you  · Demo · New work$/)
 })
 
 test("excludes archived sessions and non-text, synthetic, and non-chat messages", () => {
@@ -134,7 +144,7 @@ test("excludes archived sessions and non-text, synthetic, and non-chat messages"
     addMessage(database, "ses_archived", 1, 2000, "user", { text: "archived text" })
   })
 
-  assert.deepEqual(stream(fixture.env).map((fields) => fields[4]), ["visible answer"])
+  assert.deepEqual(stream(fixture.env).map((item) => item.text), ["visible answer"])
 })
 
 test("keeps a private per-session cache and re-reads only sessions whose messages changed", () => {
@@ -157,11 +167,11 @@ test("keeps a private per-session cache and re-reads only sessions whose message
   for (const file of files) assert.equal(statSync(join(directory, file)).mode & 0o777, 0o600)
   const cachedA = files.find((file) => file.startsWith("ses_a."))
   const inodeA = statSync(join(directory, cachedA)).ino
-  writeFileSync(join(directory, cachedA), "served from cache\n")
+  writeFileSync(join(directory, cachedA), "1\t1000\tuser\tserved from cache\n")
 
   write(fixture, (database) => addMessage(database, "ses_b", 2, 3000, "user", { text: "second b" }))
-  const texts = stream(fixture.env).map((fields) => fields[4])
-  assert.deepEqual(texts, ["first b", "second b", "served from cache"])
+  const texts = stream(fixture.env).map((item) => item.text)
+  assert.deepEqual(texts, ["second b", "first b", "served from cache"])
 
   const after = readdirSync(directory)
   assert.equal(after.length, 2)
@@ -183,7 +193,7 @@ test("pauses between batches once the eager window is loaded", () => {
   assert.ok(Date.now() - started >= 900, `expected three 0.3s pauses, took ${Date.now() - started}ms`)
 })
 
-test("removes the previous single-file cache", () => {
+test("removes the previous cache formats", () => {
   const fixture = setup()
   const legacy = join(fixture.cache, "opencode-search", "12345")
   mkdirSync(legacy, { recursive: true })
@@ -196,6 +206,11 @@ test("removes the previous single-file cache", () => {
   stream(fixture.env)
   assert.equal(existsSync(legacy), false)
   assert.equal(existsSync(join(fixture.cache, "opencode-search", "messages.tsv")), false)
+
+  const plainText = join(cacheDirectory(fixture), "ses_a.1000-1.txt")
+  writeFileSync(plainText, "hello\n")
+  stream(fixture.env)
+  assert.equal(existsSync(plainText), false)
 })
 
 test("resumes the selected root session from its directory", () => {
@@ -209,13 +224,19 @@ test("resumes the selected root session from its directory", () => {
   const content = run(["child"], fixture.env)
   assert.equal(content.status, 0, content.stderr)
   assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
-  assert.match(readFileSync(fixture.env.OCG_FZF_ARGS, "utf8"), /^--exact$/m)
+  const fzfArgs = readFileSync(fixture.env.OCG_FZF_ARGS, "utf8")
+  assert.match(fzfArgs, /^--exact$/m)
+  assert.match(fzfArgs, /^--read0$/m)
 
   rmSync(fixture.capture)
   const picker = run(["--sessions", "Root"], fixture.env)
   assert.equal(picker.status, 0, picker.stderr)
   assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
   assert.equal(statSync(script).mode & 0o111, 0o111)
+
+  const outdated = run(["child"], { ...fixture.env, OCG_FAKE_FZF_VERSION: "0.44.1 (old)" })
+  assert.equal(outdated.status, 1)
+  assert.match(outdated.stderr, /fzf 0\.56 or newer is required; found 0\.44\.1/)
 })
 
 test("stops the background loader when the picker exits early", async () => {
@@ -237,16 +258,38 @@ test("stops the background loader when the picker exits early", async () => {
   assert.match(readFileSync(fixture.capture, "utf8"), /--session ses_19/)
 })
 
-test("prints a transcript and explains a database without V2 history", () => {
+test("previews the conversation at the selected message, formatted as chat", () => {
   const fixture = setup()
+  const long = Array.from({ length: 30 }, (_, index) => `filler line ${index}`).join("\n")
   write(fixture, (database) => {
-    addSession(database, "ses_a", { directory: fixture.project })
-    addMessage(database, "ses_a", 1, 1000, "user", { text: "question" })
-    addMessage(database, "ses_a", 2, 1100, "assistant", assistant("answer"))
+    addSession(database, "ses_a", { directory: fixture.project, title: "Formatting" })
+    addMessage(database, "ses_a", 1, 1000, "user", { text: "first question" })
+    addMessage(database, "ses_a", 2, 1100, "assistant", assistant("## Summary\n- **bold** item with `code`\n```json\n{\"a\":1}\n```"))
+    addMessage(database, "ses_a", 3, 1200, "user", { text: '{"stdout":{"ok":true}}' })
+    addMessage(database, "ses_a", 4, 1300, "assistant", assistant(`${long}\nthe needle is here`))
   })
-  const transcript = run(["__transcript", "ses_a"], fixture.env)
-  assert.equal(transcript.status, 0, transcript.stderr)
-  assert.equal(transcript.stdout, "### user\nquestion\n\n### assistant\nanswer\n")
+
+  const preview = (seq, query = "") => {
+    const result = run(["__preview", "ses_a", seq, query], fixture.env)
+    assert.equal(result.status, 0, result.stderr)
+    return result.stdout
+  }
+
+  const formatted = preview("2").replace(ANSI, "")
+  assert.match(formatted, /^Formatting\nDemo · /)
+  assert.match(formatted, /  you  \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n  first question/)
+  assert.match(formatted, /▌ assistant  /)
+  assert.match(formatted, /▌ Summary\n▌ • bold item with code\n/)
+  assert.match(formatted, /▌ │ \{\n▌ │   "a": 1\n▌ │ \}/)
+  assert.match(formatted, /  \{\n    "stdout": \{\n      "ok": true/)
+  assert.doesNotMatch(formatted, /\*\*|```|## /)
+
+  const focused = preview("4", "needle")
+  assert.match(focused, /\x1b\[7mneedle\x1b\[27m/)
+  const plain = focused.replace(ANSI, "")
+  assert.match(plain, /··· 2 earlier messages/)
+  assert.match(plain, /▌ ··· 28 lines before the match\n▌ filler line 28\n▌ filler line 29\n▌ the needle is here/)
+  assert.doesNotMatch(plain, /filler line 0\n/)
 
   const legacy = join(fixture.root, "legacy.db")
   const database = new DatabaseSync(legacy)
