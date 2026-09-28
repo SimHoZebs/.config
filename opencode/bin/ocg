@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# DEPRECATED: ocg reads only OpenCode V1's session/message/part tables, so
+# sessions created by OpenCode V2 (session_v2/session_message) never appear.
+# It also rebuilds its full-text cache from the whole database whenever the
+# database changes. It needs a V2 port and lazy loading before it is reliable.
 set -euo pipefail
 umask 077
 
@@ -195,6 +199,8 @@ case "${1:-}" in
   __buildcache) ensure_cache; exit $? ;;
   __ensure_cache_locked) build_cache_locked; exit $? ;;
 esac
+
+printf 'ocg: deprecated; OpenCode V2 sessions are not searched\n' >&2
 
 handle_selection() {
   local out="$1" key line id dir
