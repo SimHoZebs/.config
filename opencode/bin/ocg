@@ -7,6 +7,7 @@ Usage:
 
 Each result shows who wrote a message, when, and in which session, with the
 matching text below. The preview opens the conversation at that message.
+Sessions launched by an agent as subagents are not searched or listed.
 Keys: Enter resumes the session in its directory, Ctrl-Y prints its id, and
 Ctrl-/ toggles the preview. Search terms match exact substrings; prefix a term
 with ! to exclude it.
@@ -61,33 +62,22 @@ JSON_KEY = re.compile(r'^(\s*)("(?:[^"\\]|\\.)*")(\s*:)')
 DIM, UNDIM = "\033[2m", "\033[22m"
 BOLD = "\033[1m"
 SPEAKERS = {
-    ("user", False): ("you", "1;36"),
-    ("assistant", False): ("assistant", "1;32"),
-    ("user", True): ("task", "1;35"),
-    ("assistant", True): ("subagent", "1;33"),
+    "user": ("you", "1;36"),
+    "assistant": ("assistant", "1;32"),
 }
 
 SESSIONS_SQL = """
-WITH RECURSIVE
-activity AS (
+WITH activity AS (
   SELECT session_id, max(time_updated) AS last, count(*) AS messages
   FROM session_message
   GROUP BY session_id
-),
-tree(id, root) AS (
-  SELECT id, id FROM session_v2
-  WHERE parent_id IS NULL OR parent_id NOT IN (SELECT id FROM session_v2)
-  UNION
-  SELECT child.id, tree.root FROM session_v2 AS child JOIN tree ON child.parent_id = tree.id
 )
-SELECT s.id, tree.root, root.directory, COALESCE(project.name, ''),
-       COALESCE(root.title, ''), COALESCE(s.title, ''), activity.last, activity.messages
-FROM tree
-JOIN session_v2 AS s ON s.id = tree.id
-JOIN session_v2 AS root ON root.id = tree.root
+SELECT s.id, s.directory, COALESCE(project.name, ''), COALESCE(s.title, ''),
+       activity.last, activity.messages
+FROM session_v2 AS s
 JOIN activity ON activity.session_id = s.id
-LEFT JOIN project ON project.id = root.project_id
-WHERE s.time_archived IS NULL AND root.time_archived IS NULL
+LEFT JOIN project ON project.id = s.project_id
+WHERE s.parent_id IS NULL AND s.time_archived IS NULL
 ORDER BY activity.last DESC, s.id
 """
 
@@ -108,36 +98,24 @@ ORDER BY sm.session_id, sm.seq
 """
 
 SESSION_SQL = """
-SELECT s.id, s.parent_id, s.directory, COALESCE(s.title, ''), COALESCE(project.name, ''),
-       COALESCE(parent.title, '')
+SELECT s.directory, COALESCE(s.title, ''), COALESCE(project.name, '')
 FROM session_v2 AS s
 LEFT JOIN project ON project.id = s.project_id
-LEFT JOIN session_v2 AS parent ON parent.id = s.parent_id
 WHERE s.id = ?
 """
 
 
 class Session:
-    __slots__ = ("id", "root", "directory", "project", "root_title", "title", "last", "messages")
+    __slots__ = ("id", "directory", "project", "title", "last", "messages")
 
     def __init__(self, row):
-        (self.id, self.root, self.directory, self.project,
-         self.root_title, self.title, self.last, self.messages) = row
+        self.id, self.directory, self.project, self.title, self.last, self.messages = row
 
     def name(self):
         return project_name(self.project, self.directory)
 
-    def child(self):
-        return self.id != self.root
-
-    def title_label(self):
-        title = self.root_title or "untitled"
-        if self.child():
-            title += f" › {self.title or 'subagent'}"
-        return clean(title)
-
-    def fields(self, source, seq=""):
-        return f"{self.root}\t{clean(self.directory)}\t{source}\t{seq}\t"
+    def fields(self, seq=""):
+        return f"{self.id}\t{clean(self.directory)}\t{seq}\t"
 
 
 def die(message):
@@ -158,8 +136,8 @@ def when(milliseconds, with_time=True):
     return moment.strftime("%Y-%m-%d %H:%M" if with_time else "%Y-%m-%d")
 
 
-def speaker(kind, child):
-    label, color = SPEAKERS.get((kind, child), (kind, "1"))
+def speaker(kind):
+    label, color = SPEAKERS.get(kind, (kind, "1"))
     return f"\033[{color}m{label}\033[0m"
 
 
@@ -323,10 +301,10 @@ class Cache:
 
 def message_items(session, rows):
     items = []
-    prefix_title = f"{DIM}·{UNDIM} {clean(session.name())} {DIM}·{UNDIM} {session.title_label()}"
+    title = f"{DIM}·{UNDIM} {clean(session.name())} {DIM}·{UNDIM} {clean(session.title or 'untitled')}"
     for seq, created, kind, text in reversed(rows):
-        header = f"{DIM}{when(int(created))}{UNDIM}  {speaker(kind, session.child())}  {prefix_title}"
-        items.append(f"{session.fields(session.id, seq)}{header}\n{text}\0")
+        header = f"{DIM}{when(int(created))}{UNDIM}  {speaker(kind)}  {title}"
+        items.append(f"{session.fields(seq)}{header}\n{text}\0")
     return "".join(items)
 
 
@@ -368,14 +346,10 @@ def stream():
 
 
 def session_items(sessions):
-    roots = {}
-    for session in sessions:
-        if session.root not in roots:
-            roots[session.root] = session
     items = []
-    for session in roots.values():
+    for session in sessions:
         label = f"{DIM}{when(session.last, with_time=False)}{UNDIM}  {BOLD}{clean(session.name())}{UNDIM}"
-        items.append(f"{session.fields(session.root)}{label}  {clean(session.root_title or 'untitled')}\0")
+        items.append(f"{session.fields()}{label}  {clean(session.title or 'untitled')}\0")
     return "".join(items)
 
 
@@ -498,16 +472,13 @@ def preview(session_id, focus, query):
     if not session:
         print("Session not found.")
         return
-    _, parent, directory, title, project, parent_title = session
+    directory, title, project = session
     rows = [(seq, created, kind, text) for _, seq, created, kind, text in messages(db, [session_id])
             if text and text.strip()]
     highlight = highlighter(query)
     terms = query_terms(query)
     out = [f"{BOLD}{clean(title) or 'untitled'}{UNDIM}",
-           f"{DIM}{clean(project_name(project, directory))} · {clean(directory)}{UNDIM}"]
-    if parent:
-        out.append(f"{DIM}subagent session of: {clean(parent_title) or parent}{UNDIM}")
-    out.append("")
+           f"{DIM}{clean(project_name(project, directory))} · {clean(directory)}{UNDIM}", ""]
     index = next((position for position, row in enumerate(rows) if str(row[0]) == focus), None)
     start = max(0, index - 1) if index is not None else 0
     if start:
@@ -520,7 +491,7 @@ def preview(session_id, focus, query):
         seq, created, kind, text = rows[position]
         focused = position == index
         mark = "\033[35m▌\033[39m " if focused else "  "
-        out.append(f"{mark}{speaker(kind, bool(parent))}  {DIM}{when(created)}{UNDIM}")
+        out.append(f"{mark}{speaker(kind)}  {DIM}{when(created)}{UNDIM}")
         body = render_message(text, width)
         if index is not None and position < index and len(body) > CONTEXT_LINES:
             body = [f"{DIM}···{UNDIM}"] + body[-CONTEXT_LINES:]
@@ -552,9 +523,9 @@ def require_fzf():
 
 
 def fzf_command(query, sessions_mode):
-    preview_command = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __preview {{3}} {{4}} {{q}}"
+    preview_command = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __preview {{1}} {{3}} {{q}}"
     command = [
-        "fzf", "--read0", "--print0", "--ansi", "--delimiter", "\t", "--with-nth", "5",
+        "fzf", "--read0", "--print0", "--ansi", "--delimiter", "\t", "--with-nth", "4",
         "--query", query, "--layout", "reverse", "--highlight-line", "--info", "inline-right",
         "--preview", preview_command,
         "--preview-window", "right,50%,wrap,border-left,<80(down,55%,wrap,border-top)",

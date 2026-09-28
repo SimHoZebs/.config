@@ -96,9 +96,9 @@ function stream(env) {
   const result = run(["__stream"], env)
   assert.equal(result.status, 0, result.stderr)
   return result.stdout.split("\0").filter(Boolean).map((item) => {
-    const [root, directory, source, seq, display] = item.split("\t")
+    const [session, directory, seq, display] = item.split("\t")
     const [header, text] = display.split("\n")
-    return { root, directory, source, seq, header: header.replace(ANSI, ""), text }
+    return { session, directory, seq, header: header.replace(ANSI, ""), text }
   })
 }
 
@@ -107,7 +107,7 @@ function cacheDirectory(fixture) {
   return join(fixture.cache, "opencode-search", databaseKey, "sessions")
 }
 
-test("streams newest messages first and attributes subagent text to the session to resume", () => {
+test("streams newest messages first and leaves out subagent sessions", () => {
   const fixture = setup()
   write(fixture, (database) => {
     addSession(database, "ses_old", { directory: fixture.project, title: "Old work" })
@@ -116,15 +116,37 @@ test("streams newest messages first and attributes subagent text to the session 
     addMessage(database, "ses_old", 1, 1000, "user", { text: "old question" })
     addMessage(database, "ses_new", 1, 2000, "user", { text: "new question" })
     addMessage(database, "ses_new", 2, 2500, "assistant", assistant("new answer\nsecond line"))
-    addMessage(database, "ses_child", 1, 3000, "assistant", assistant("child finding"))
+    addMessage(database, "ses_child", 1, 3000, "user", { text: "task prompt" })
+    addMessage(database, "ses_child", 2, 3100, "assistant", assistant("child finding"))
   })
 
   const items = stream(fixture.env)
-  assert.deepEqual(items.map((item) => item.text), ["child finding", "new answer second line", "new question", "old question"])
-  assert.deepEqual([items[0].root, items[0].directory, items[0].source, items[0].seq], ["ses_new", fixture.project, "ses_child", "1"])
-  assert.match(items[0].header, /  subagent  · Demo · New work › Child task$/)
-  assert.match(items[1].header, /  assistant  · Demo · New work$/)
-  assert.match(items[2].header, /  you  · Demo · New work$/)
+  assert.deepEqual(items.map((item) => item.text), ["new answer second line", "new question", "old question"])
+  assert.deepEqual([items[0].session, items[0].directory, items[0].seq], ["ses_new", fixture.project, "2"])
+  assert.match(items[0].header, /  assistant  · Demo · New work$/)
+  assert.match(items[1].header, /  you  · Demo · New work$/)
+})
+
+test("drops cached subagent sessions and lists only top-level sessions", () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    addSession(database, "ses_top", { directory: fixture.project, title: "Top" })
+    addMessage(database, "ses_top", 1, 1000, "user", { text: "top question" })
+  })
+  stream(fixture.env)
+  const cachedChild = join(cacheDirectory(fixture), "ses_child.3000-1.tsv")
+  writeFileSync(cachedChild, "1\t3000\tassistant\tcached subagent text\n")
+  write(fixture, (database) => {
+    addSession(database, "ses_child", { parent: "ses_top", directory: fixture.project, title: "Child" })
+    addMessage(database, "ses_child", 1, 3000, "assistant", assistant("cached subagent text"))
+  })
+
+  assert.deepEqual(stream(fixture.env).map((item) => item.text), ["top question"])
+  assert.equal(existsSync(cachedChild), false)
+
+  const picker = run(["--sessions"], fixture.env)
+  assert.equal(picker.status, 0, picker.stderr)
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
 })
 
 test("excludes archived sessions and non-text, synthetic, and non-chat messages", () => {
@@ -213,28 +235,27 @@ test("removes the previous cache formats", () => {
   assert.equal(existsSync(plainText), false)
 })
 
-test("resumes the selected root session from its directory", () => {
+test("resumes the selected session from its directory", () => {
   const fixture = setup()
   write(fixture, (database) => {
-    addSession(database, "ses_root", { directory: fixture.project, title: "Root" })
-    addSession(database, "ses_child", { parent: "ses_root", directory: "/elsewhere" })
-    addMessage(database, "ses_child", 1, 1000, "assistant", assistant("child text"))
+    addSession(database, "ses_top", { directory: fixture.project, title: "Top" })
+    addMessage(database, "ses_top", 1, 1000, "assistant", assistant("top text"))
   })
 
-  const content = run(["child"], fixture.env)
+  const content = run(["top"], fixture.env)
   assert.equal(content.status, 0, content.stderr)
-  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
   const fzfArgs = readFileSync(fixture.env.OCG_FZF_ARGS, "utf8")
   assert.match(fzfArgs, /^--exact$/m)
   assert.match(fzfArgs, /^--read0$/m)
 
   rmSync(fixture.capture)
-  const picker = run(["--sessions", "Root"], fixture.env)
+  const picker = run(["--sessions", "Top"], fixture.env)
   assert.equal(picker.status, 0, picker.stderr)
-  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_root"])
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
   assert.equal(statSync(script).mode & 0o111, 0o111)
 
-  const outdated = run(["child"], { ...fixture.env, OCG_FAKE_FZF_VERSION: "0.44.1 (old)" })
+  const outdated = run(["top"], { ...fixture.env, OCG_FAKE_FZF_VERSION: "0.44.1 (old)" })
   assert.equal(outdated.status, 1)
   assert.match(outdated.stderr, /fzf 0\.56 or newer is required; found 0\.44\.1/)
 })
