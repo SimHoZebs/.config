@@ -2,26 +2,35 @@
 """ocg - search OpenCode chat history and resume a session.
 
 Usage:
-  ocg [query]                 search chat messages, newest first
+  ocg [query]                 search chat messages, most relevant first
   ocg -s|--sessions [query]   pick a session by project, title, and date
+
+Results are ranked by relevance, then recency. Relevance scores each message's
+text with BM25, which favors rare words and repeated mentions, gives extra
+credit when the words appear together as typed, and adds a smaller score when
+query words appear in the session's title. Every word must appear in the
+message or in its session's title; "quoted words" must appear as an exact
+phrase; !word excludes messages containing word. A word with an uppercase
+letter matches case-sensitively. Sessions launched by an agent as subagents
+are not searched or listed.
 
 Each result shows who wrote a message, when, and in which session, with the
 matching text below. The preview opens the conversation at that message.
-Sessions launched by an agent as subagents are not searched or listed.
-Keys: Enter resumes the session in its directory, Ctrl-Y prints its id, and
-Ctrl-/ toggles the preview. Search terms match exact substrings; prefix a term
-with ! to exclude it.
+Keys: Enter resumes the session in its directory, Ctrl-Y prints its id,
+Ctrl-/ toggles the preview, and Ctrl-R refreshes results while older sessions
+are still loading.
 
-The OpenCode V2 database is opened read-only. Results stream in newest first
-while older sessions keep loading at low CPU priority. Each session's messages
-are cached under $XDG_CACHE_HOME/opencode-search and read again only after that
-session changes. After the first OCG_EAGER uncached sessions (default 50),
-sessions are read OCG_BATCH at a time (default 10) with OCG_PAUSE seconds
-between batches (default 0.25). Requires fzf 0.56 or newer.
+The OpenCode V2 database is opened read-only. Each session's messages are
+cached under $XDG_CACHE_HOME/opencode-search and read again only after that
+session changes. Before the picker opens, the OCG_EAGER newest uncached
+sessions (default 50) are cached; the rest load in the background at low CPU
+priority, OCG_BATCH at a time (default 10) with OCG_PAUSE seconds between
+batches (default 0.25). Requires fzf 0.56 or newer.
 """
 
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
@@ -32,7 +41,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections import deque
 from datetime import datetime
 from urllib.request import pathname2url
 
@@ -46,6 +54,12 @@ PREVIEW_LINES = 600
 MESSAGE_LINES = 200
 CONTEXT_LINES = 4
 PRETTY_JSON_BYTES = 200_000
+RESULTS = 500
+EXCERPT_LEAD = 60
+EXCERPT_LENGTH = 400
+TITLE_WEIGHT = 0.5
+COMMON_TITLE_SHARE = 0.1
+QUERY_TOKEN = re.compile(r'"([^"]*)"?|(\S+)')
 
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 WHITESPACE = re.compile(r"\s+")
@@ -116,6 +130,17 @@ class Session:
 
     def fields(self, seq=""):
         return f"{self.id}\t{clean(self.directory)}\t{seq}\t"
+
+
+class Chat:
+    __slots__ = ("id", "cache_name", "last", "directory", "project", "title")
+
+    def __init__(self, session_id, cache_name, last, directory, project, title):
+        self.id, self.cache_name, self.last = session_id, cache_name, int(last)
+        self.directory, self.project, self.title = directory, project, title
+
+    def label(self):
+        return f"{project_name(self.project, self.directory)} {self.title}"
 
 
 def die(message):
@@ -217,6 +242,7 @@ class Cache:
         self.root = os.path.join(cache_home, "opencode-search")
         database_key = os.path.join(self.root, hashlib.sha256(database.encode()).hexdigest()[:16])
         self.directory = os.path.join(database_key, "sessions")
+        self.index_path = os.path.join(database_key, "index.tsv")
         for path in (self.root, database_key, self.directory):
             private_directory(path)
         self.remove_legacy()
@@ -253,30 +279,69 @@ class Cache:
     def cached(self, session):
         return self.name(session) in self.names.get(session.id, ())
 
-    def read(self, session):
+    def read_file(self, name):
+        """Return (text, ascii_lowered_text, rows) for a cache file, as UTF-8 bytes.
+
+        Each row is (seq, created, kind, start, end), where text[start:end] is the message.
+        """
         try:
-            fd = os.open(os.path.join(self.directory, self.name(session)), os.O_RDONLY | NOFOLLOW)
+            fd = os.open(os.path.join(self.directory, name), os.O_RDONLY | NOFOLLOW)
         except OSError:
             return None
-        with os.fdopen(fd, encoding="utf-8", errors="replace") as stream:
-            rows = [line.rstrip("\n").split("\t", 3) for line in stream]
-        return [tuple(row) for row in rows if len(row) == 4]
+        with os.fdopen(fd, "rb") as stream:
+            content = stream.read()
+        rows = []
+        offset = 0
+        for line in content.split(b"\n"):
+            end = offset + len(line)
+            fields = line.split(b"\t", 3)
+            if len(fields) == 4 and fields[1].isdigit():
+                rows.append((fields[0].decode(), int(fields[1]), fields[2].decode(), end - len(fields[3]), end))
+            offset = end + 1
+        return content, content.lower(), rows
 
-    def write(self, session, rows):
-        if not SAFE_ID.match(session.id):
-            return
-        final = self.name(session)
-        temporary = os.path.join(self.directory, f".{final}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+    def newest_name(self, session_id, wanted):
+        names = self.names.get(session_id, set())
+        if wanted in names:
+            return wanted
+        return max(names, key=lambda name: name.split(".", 1)[1], default=None)
+
+    def write_atomic(self, path, text):
+        directory = os.path.dirname(path)
+        temporary = os.path.join(directory, f".{os.path.basename(path)}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
         try:
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                stream.write("".join("\t".join(row) + "\n" for row in rows))
-            os.replace(temporary, os.path.join(self.directory, final))
+                stream.write(text)
+            os.replace(temporary, path)
+            return True
         except OSError:
             try:
                 os.unlink(temporary)
             except OSError:
                 pass
+            return False
+
+    def write_index(self, sessions):
+        self.write_atomic(self.index_path, "".join(
+            f"{s.id}\t{self.name(s)}\t{s.last}\t{clean(s.directory)}\t{clean(s.project)}\t{clean(s.title)}\n"
+            for s in sessions if SAFE_ID.match(s.id)
+        ))
+
+    def read_index(self):
+        try:
+            fd = os.open(self.index_path, os.O_RDONLY | NOFOLLOW)
+        except OSError:
+            return []
+        with os.fdopen(fd, encoding="utf-8", errors="replace") as stream:
+            rows = [line.rstrip("\n").split("\t", 5) for line in stream]
+        return [Chat(*row) for row in rows if len(row) == 6 and row[2].isdigit()]
+
+    def write(self, session, rows):
+        if not SAFE_ID.match(session.id):
+            return
+        final = self.name(session)
+        if not self.write_atomic(os.path.join(self.directory, final), "".join("\t".join(row) + "\n" for row in rows)):
             return
         for stale in self.names.get(session.id, set()) - {final}:
             try:
@@ -288,61 +353,216 @@ class Cache:
     def prune(self, sessions):
         keep = {self.name(session) for session in sessions}
         now = time.time()
-        for name in os.listdir(self.directory):
-            path = os.path.join(self.directory, name)
-            try:
-                if name.endswith(self.SUFFIX) and name not in keep:
-                    os.unlink(path)
-                elif name.endswith(".tmp") and now - os.lstat(path).st_mtime > STALE_TEMPORARY_SECONDS:
-                    os.unlink(path)
-            except OSError:
-                pass
+        index_directory = os.path.dirname(self.index_path)
+        for directory in (self.directory, index_directory):
+            for name in os.listdir(directory):
+                path = os.path.join(directory, name)
+                try:
+                    if directory == self.directory and name.endswith(self.SUFFIX) and name not in keep:
+                        os.unlink(path)
+                    elif name.endswith(".tmp") and now - os.lstat(path).st_mtime > STALE_TEMPORARY_SECONDS:
+                        os.unlink(path)
+                except OSError:
+                    pass
 
 
-def message_items(session, rows):
-    items = []
-    title = f"{DIM}·{UNDIM} {clean(session.name())} {DIM}·{UNDIM} {clean(session.title or 'untitled')}"
-    for seq, created, kind, text in reversed(rows):
-        header = f"{DIM}{when(int(created))}{UNDIM}  {speaker(kind)}  {title}"
-        items.append(f"{session.fields(seq)}{header}\n{text}\0")
-    return "".join(items)
+def fill(db, cache, sessions, limit=None, throttle=False):
+    """Cache uncached sessions newest first; stop after `limit` sessions when given.
 
-
-def stream():
-    eager = setting("OCG_EAGER", 50, int)
+    With `throttle`, pause before every batch: the picker has already cached the
+    newest sessions, so background loading never needs to hurry.
+    """
     batch_size = max(1, setting("OCG_BATCH", 10, int))
-    pause = setting("OCG_PAUSE", 0.25, float)
+    pause = setting("OCG_PAUSE", 0.25, float) if throttle else 0
+    pending = [session for session in sessions if not cache.cached(session)]
+    if limit is not None:
+        pending = pending[:limit]
+    for start in range(0, len(pending), batch_size):
+        batch = pending[start:start + batch_size]
+        if pause:
+            time.sleep(pause)
+        found = extract(db, [session.id for session in batch])
+        for session in batch:
+            cache.write(session, found[session.id])
+
+
+def load():
     db, database = connect()
     cache = Cache(database)
     sessions = load_sessions(db)
-    pending = deque(session for session in sessions if not cache.cached(session))
-    loaded = {}
-    extracted = 0
-    out = sys.stdout.buffer
-
-    for session in sessions:
-        rows = loaded.pop(session.id, None)
-        if rows is None and cache.cached(session):
-            rows = cache.read(session)
-        if rows is None:
-            batch = [session]
-            while pending and len(batch) < batch_size:
-                candidate = pending.popleft()
-                if candidate is not session:
-                    batch.append(candidate)
-            if extracted >= eager and pause:
-                time.sleep(pause)
-            found = extract(db, [item.id for item in batch])
-            extracted += len(batch)
-            for item in batch:
-                cache.write(item, found[item.id])
-                loaded[item.id] = found[item.id]
-            rows = loaded.pop(session.id)
-        if rows:
-            out.write(message_items(session, rows).encode("utf-8", "replace"))
-            out.flush()
-
+    cache.write_index(sessions)
+    fill(db, cache, sessions, throttle=True)
     cache.prune(sessions)
+
+
+def parse_query(query):
+    required, excluded = [], []
+    for match in QUERY_TOKEN.finditer(query or ""):
+        phrase, word = match.group(1), match.group(2)
+        if phrase is not None:
+            if phrase.strip():
+                required.append(phrase.strip())
+        elif word.startswith("!"):
+            if len(word) > 1:
+                excluded.append(word[1:])
+        else:
+            required.append(word)
+    return required, excluded
+
+
+class Term:
+    """A query word or phrase; uppercase letters make it case-sensitive, as in fzf.
+
+    Matching runs on UTF-8 bytes. Case-insensitive ASCII terms compare against
+    ASCII-lowered bytes, which is much faster than Unicode lowering; other
+    case-insensitive terms fall back to Unicode lowering of the message.
+    """
+    __slots__ = ("needle", "mode")
+
+    def __init__(self, text):
+        if text != text.lower():
+            self.mode, self.needle = "raw", text.encode()
+        elif text.isascii():
+            self.mode, self.needle = "ascii", text.encode()
+        else:
+            self.mode, self.needle = "unicode", text
+
+    def haystack(self, raw, lowered):
+        if self.mode == "raw":
+            return raw
+        if self.mode == "ascii":
+            return lowered
+        return raw.decode("utf-8", "replace").lower()
+
+    def count(self, raw, lowered):
+        return self.haystack(raw, lowered).count(self.needle)
+
+    def within(self, raw, lowered):
+        return self.needle in self.haystack(raw, lowered)
+
+
+class Scorer:
+    """BM25: rarer terms weigh more, repeats count with diminishing returns, long texts are normalized.
+
+    Terms found in more than `common` of the documents get no weight, so words like "and"
+    cannot decide a ranking on their own.
+    """
+
+    def __init__(self, terms, frequencies, count, average, k1=1.2, b=0.75, common=1.0):
+        self.terms, self.k1, self.b = terms, k1, b
+        self.average = average or 1
+        self.weight = [
+            0.0 if frequency > common * count else math.log(1 + (count - frequency + 0.5) / (frequency + 0.5))
+            for frequency in frequencies
+        ]
+
+    def score(self, text, lowered):
+        total = 0.0
+        norm = self.k1 * (1 - self.b + self.b * len(text) / self.average)
+        for term, weight in zip(self.terms, self.weight):
+            tf = term.count(text, lowered)
+            if tf:
+                total += weight * tf * (self.k1 + 1) / (tf + norm)
+        return total
+
+
+def frequencies(terms, documents):
+    counts = [0] * len(terms)
+    for text, lowered in documents:
+        for index, term in enumerate(terms):
+            if term.within(text, lowered):
+                counts[index] += 1
+    return counts
+
+
+def excerpt(raw, lowered, terms, phrase=None):
+    """Start just before the typed phrase when present, else before the earliest matching term."""
+    first = -1
+    if phrase is not None and phrase.mode != "unicode":
+        first = phrase.haystack(raw, lowered).find(phrase.needle)
+    if first < 0:
+        positions = [term.haystack(raw, lowered).find(term.needle) for term in terms if term.mode != "unicode"]
+        first = min((position for position in positions if position >= 0), default=0)
+    start = max(0, first - EXCERPT_LEAD)
+    while start and start < len(raw) and raw[start] & 0xC0 == 0x80:
+        start += 1
+    if start:
+        space = raw.find(b" ", start, first)
+        start = space + 1 if space >= 0 else start
+    snippet = raw[start:start + EXCERPT_LENGTH * 2].decode("utf-8", "ignore")[:EXCERPT_LENGTH]
+    return ("… " if start else "") + snippet
+
+
+def search(query, limit=RESULTS):
+    words, unwanted = parse_query(query)
+    required = [Term(word) for word in words]
+    excluded = [Term(word) for word in unwanted]
+    plain = [word for word in words if " " not in word]
+    extra = [Term(" ".join(plain))] if len(plain) > 1 else []
+    scoring = required + extra
+    highlight = highlighter(" ".join(f'"{word}"' for word in words))
+
+    cache = Cache(os.path.realpath(database_path()))
+    chats = cache.read_index()
+    labels = {}
+    for chat in chats:
+        label = chat.label().encode()
+        labels[chat.id] = (label, label.lower())
+    titles = Scorer(required, frequencies(required, labels.values()), len(labels),
+                    sum(len(label) for label, _ in labels.values()) / max(1, len(labels)), b=0, common=COMMON_TITLE_SHARE)
+
+    counts = [0] * len(scoring)
+    total_length = documents = 0
+    candidates = []
+    for chat in chats:
+        name = cache.newest_name(chat.id, chat.cache_name)
+        content = cache.read_file(name) if name else None
+        if content is None:
+            continue
+        whole, whole_lowered, rows = content
+        documents += len(rows)
+        total_length += sum(end - start for _, _, _, start, end in rows)
+        label, label_lowered = labels[chat.id]
+        in_file = [term.within(whole, whole_lowered) for term in scoring]
+        in_title = [term.within(label, label_lowered) for term in required]
+        eligible = all(found or titled for found, titled in zip(in_file, in_title))
+        if not eligible and not any(in_file):
+            continue
+        check_excluded = [term for term in excluded if term.within(whole, whole_lowered)]
+        for seq, created, kind, start, end in rows:
+            raw, lowered = whole[start:end], whole_lowered[start:end]
+            present = [found and term.within(raw, lowered) for term, found in zip(scoring, in_file)]
+            for index, found in enumerate(present):
+                if found:
+                    counts[index] += 1
+            if not eligible or not all(found or titled for found, titled in zip(present, in_title)):
+                continue
+            if any(term.within(raw, lowered) for term in check_excluded):
+                continue
+            candidates.append((chat, seq, created, kind, raw, lowered))
+
+    scorer = Scorer(scoring, counts, max(1, documents), total_length / max(1, documents))
+    title_score = {chat.id: TITLE_WEIGHT * titles.score(*labels[chat.id]) for chat in chats}
+    ranked = sorted(
+        candidates,
+        key=lambda row: (-(scorer.score(row[4], row[5]) + title_score[row[0].id]), -row[2], -row[0].last),
+    )
+
+    out = []
+    for chat, seq, created, kind, raw, lowered in ranked[:limit]:
+        header = (f"{DIM}{when(created)}{UNDIM}  {speaker(kind)}  {DIM}·{UNDIM} "
+                  f"{clean(project_name(chat.project, chat.directory))} {DIM}·{UNDIM} {chat.title or 'untitled'}")
+        body = highlight(excerpt(raw, lowered, required, extra[0] if extra else None))
+        out.append(f"{chat.id}\t{chat.directory}\t{seq}\t{header}\n{body}\0")
+    sys.stdout.buffer.write("".join(out).encode("utf-8", "replace"))
+
+
+def status():
+    cache = Cache(os.path.realpath(database_path()))
+    chats = cache.read_index()
+    waiting = sum(1 for chat in chats if chat.cache_name not in cache.names.get(chat.id, ()))
+    base = "Enter resume · Ctrl-Y print id · Ctrl-/ preview · ranked by relevance, then recency"
+    print(f"{base} · {waiting} older chat{'s' if waiting != 1 else ''} loading, Ctrl-R refreshes" if waiting else base)
 
 
 def session_items(sessions):
@@ -354,14 +574,7 @@ def session_items(sessions):
 
 
 def query_terms(query):
-    terms = []
-    for token in (query or "").split():
-        if token.startswith("!") or token == "|":
-            continue
-        token = token.lstrip("'^").rstrip("$")
-        if token:
-            terms.append(token)
-    return terms
+    return parse_query(query)[0]
 
 
 def highlighter(query):
@@ -523,7 +736,8 @@ def require_fzf():
 
 
 def fzf_command(query, sessions_mode):
-    preview_command = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)} __preview {{1}} {{3}} {{q}}"
+    program = f"{shlex.quote(sys.executable)} {shlex.quote(SELF)}"
+    preview_command = f"{program} __preview {{1}} {{3}} {{q}}"
     command = [
         "fzf", "--read0", "--print0", "--ansi", "--delimiter", "\t", "--with-nth", "4",
         "--query", query, "--layout", "reverse", "--highlight-line", "--info", "inline-right",
@@ -536,9 +750,11 @@ def fzf_command(query, sessions_mode):
             "--scheme", "history", "--prompt", "sessions> ",
             "--header", "Enter resume · Ctrl-Y print id · Ctrl-/ preview",
         ]
+    reload = f"reload({program} __search {{q}})"
     return command + [
-        "--exact", "--no-sort", "--gap", "--prompt", "chat> ",
-        "--header", "Enter resume · Ctrl-Y print id · Ctrl-/ preview · older chats keep loading",
+        "--disabled", "--gap", "--prompt", "chat> ",
+        "--bind", f"start:{reload}", "--bind", f"change:{reload}", "--bind", f"ctrl-r:{reload}",
+        "--bind", f"result:transform-header({program} __status)",
     ]
 
 
@@ -571,21 +787,23 @@ def resume(output):
 def pick(query, sessions_mode):
     require_fzf()
     db, database = connect()
-    Cache(database)
+    cache = Cache(database)
+    sessions = load_sessions(db)
     if sessions_mode:
-        items = session_items(load_sessions(db))
+        items = session_items(sessions)
         db.close()
         picked = subprocess.run(fzf_command(query, True), input=items.encode("utf-8", "replace"),
                                 stdout=subprocess.PIPE)
     else:
+        cache.write_index(sessions)
+        fill(db, cache, sessions, limit=setting("OCG_EAGER", 50, int))
         db.close()
         with tempfile.TemporaryFile() as errors:
-            loader = subprocess.Popen([sys.executable, SELF, "__stream"], stdout=subprocess.PIPE,
+            loader = subprocess.Popen([sys.executable, SELF, "__load"], stdout=subprocess.DEVNULL,
                                       stderr=errors, preexec_fn=lambda: os.nice(10))
             try:
-                picked = subprocess.run(fzf_command(query, False), stdin=loader.stdout, stdout=subprocess.PIPE)
+                picked = subprocess.run(fzf_command(query, False), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
             finally:
-                loader.stdout.close()
                 loader.terminate()
                 loader.wait()
             errors.seek(0)
@@ -597,12 +815,18 @@ def pick(query, sessions_mode):
 def main(argv):
     os.umask(0o077)
     command = argv[0] if argv else ""
-    if command == "__stream":
+    if command == "__load":
+        load()
+        return
+    if command == "__search":
         try:
-            stream()
+            search(argv[1] if len(argv) > 1 else "")
         except BrokenPipeError:
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
+        return
+    if command == "__status":
+        status()
         return
     if command == "__preview":
         arguments = argv[1:] + ["", "", ""]

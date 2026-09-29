@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite"
 import test, { afterEach } from "node:test"
 
 const script = resolve(new URL("../bin/ocg", import.meta.url).pathname)
+const ANSI = /\x1b\[[0-9;]*m/g
 const temporaryRoots = []
 
 afterEach(() => {
@@ -38,11 +39,26 @@ function setup() {
   database.prepare("INSERT INTO project VALUES (?, ?)").run("p1", "Demo")
   database.close()
 
-  writeExecutable(join(bin, "fzf"), `#!/bin/bash
-if [ "$1" = "--version" ]; then echo "\${OCG_FAKE_FZF_VERSION:-0.74.0 (fake)}"; exit 0; fi
-printf '%s\\n' "$@" > "$OCG_FZF_ARGS"
-IFS= read -r -d '' item || exit 1
-printf '\\0%s\\0' "$item"
+  // Stands in for fzf: runs the start:reload search itself, like fzf --disabled
+  // does, and picks the first result it returns.
+  writeExecutable(join(bin, "fzf"), `#!/usr/bin/env python3
+import os, subprocess, sys
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print(os.environ.get("OCG_FAKE_FZF_VERSION", "0.74.0 (fake)"))
+    sys.exit(0)
+open(os.environ["OCG_FZF_ARGS"], "w").write("\\n".join(args) + "\\n")
+query = args[args.index("--query") + 1] if "--query" in args else ""
+start = next((a[len("start:reload("):-1] for a in args if a.startswith("start:reload(")), None)
+if start:
+    command = start.replace("{q}", "'" + query.replace("'", "'\\\\''") + "'")
+    items = subprocess.run(["sh", "-c", command], stdout=subprocess.PIPE).stdout
+else:
+    items = sys.stdin.buffer.read()
+first = next((item for item in items.split(b"\\0") if item), None)
+if first is None:
+    sys.exit(1)
+sys.stdout.buffer.write(b"\\0" + first + b"\\0")
 `)
   writeExecutable(join(bin, "opencode"), `#!/bin/bash
 printf '%s\\t%s\\n' "$PWD" "$*" >> "$OCG_CAPTURE"
@@ -90,15 +106,18 @@ function run(args, env) {
   return spawnSync(script, args, { env, encoding: "utf8" })
 }
 
-const ANSI = /\x1b\[[0-9;]*m/g
+function load(env) {
+  const result = run(["__load"], env)
+  assert.equal(result.status, 0, result.stderr)
+}
 
-function stream(env) {
-  const result = run(["__stream"], env)
+function search(env, query = "") {
+  const result = run(["__search", query], env)
   assert.equal(result.status, 0, result.stderr)
   return result.stdout.split("\0").filter(Boolean).map((item) => {
     const [session, directory, seq, display] = item.split("\t")
     const [header, text] = display.split("\n")
-    return { session, directory, seq, header: header.replace(ANSI, ""), text }
+    return { session, directory, seq, header: header.replace(ANSI, ""), text: text.replace(ANSI, ""), raw: text }
   })
 }
 
@@ -107,7 +126,7 @@ function cacheDirectory(fixture) {
   return join(fixture.cache, "opencode-search", databaseKey, "sessions")
 }
 
-test("streams newest messages first and leaves out subagent sessions", () => {
+test("lists newest messages first without a query and leaves out subagent sessions", () => {
   const fixture = setup()
   write(fixture, (database) => {
     addSession(database, "ses_old", { directory: fixture.project, title: "Old work" })
@@ -119,34 +138,98 @@ test("streams newest messages first and leaves out subagent sessions", () => {
     addMessage(database, "ses_child", 1, 3000, "user", { text: "task prompt" })
     addMessage(database, "ses_child", 2, 3100, "assistant", assistant("child finding"))
   })
+  load(fixture.env)
 
-  const items = stream(fixture.env)
+  const items = search(fixture.env)
   assert.deepEqual(items.map((item) => item.text), ["new answer second line", "new question", "old question"])
   assert.deepEqual([items[0].session, items[0].directory, items[0].seq], ["ses_new", fixture.project, "2"])
   assert.match(items[0].header, /  assistant  · Demo · New work$/)
   assert.match(items[1].header, /  you  · Demo · New work$/)
+  assert.deepEqual(search(fixture.env, "child"), [])
 })
 
-test("drops cached subagent sessions and lists only top-level sessions", () => {
+test("ranks by relevance first and recency second", () => {
   const fixture = setup()
+  const filler = (word, count) => Array.from({ length: count }, () => word).join(" ")
   write(fixture, (database) => {
-    addSession(database, "ses_top", { directory: fixture.project, title: "Top" })
-    addMessage(database, "ses_top", 1, 1000, "user", { text: "top question" })
+    for (let index = 0; index < 8; index++) {
+      addSession(database, `ses_common_${index}`, { directory: fixture.project, title: `Common ${index} and more` })
+      addMessage(database, `ses_common_${index}`, 1, 9000 + index, "user", { text: `the report ${filler("x", 20)}` })
+    }
+    addSession(database, "ses_once", { directory: fixture.project, title: "Once" })
+    addSession(database, "ses_twice", { directory: fixture.project, title: "Twice" })
+    addSession(database, "ses_phrase", { directory: fixture.project, title: "Phrase" })
+    addSession(database, "ses_scattered", { directory: fixture.project, title: "Scattered" })
+    addSession(database, "ses_tie_old", { directory: fixture.project, title: "Tie" })
+    addSession(database, "ses_tie_new", { directory: fixture.project, title: "Tie" })
+    addSession(database, "ses_rare", { directory: fixture.project, title: "Rare" })
+    addSession(database, "ses_repeats", { directory: fixture.project, title: "Repeats" })
+    addMessage(database, "ses_rare", 1, 800, "user", { text: `quokka quokka the ${filler("x", 20)}` })
+    addMessage(database, "ses_repeats", 1, 900, "user", { text: `quokka the the the ${filler("x", 19)}` })
+    addMessage(database, "ses_once", 1, 1000, "user", { text: `zebra report ${filler("x", 20)}` })
+    addMessage(database, "ses_twice", 1, 1100, "user", { text: `zebra report zebra ${filler("x", 19)}` })
+    addMessage(database, "ses_phrase", 1, 1200, "user", { text: `lifecycle validation ${filler("y", 20)}` })
+    addMessage(database, "ses_scattered", 1, 1300, "user", { text: `validation ${filler("y", 10)} lifecycle ${filler("y", 9)}` })
+    addMessage(database, "ses_tie_old", 1, 1400, "user", { text: `tieword ${filler("z", 20)}` })
+    addMessage(database, "ses_tie_new", 1, 1500, "user", { text: `tieword ${filler("z", 20)}` })
   })
-  stream(fixture.env)
-  const cachedChild = join(cacheDirectory(fixture), "ses_child.3000-1.tsv")
-  writeFileSync(cachedChild, "1\t3000\tassistant\tcached subagent text\n")
+  load(fixture.env)
+
+  assert.deepEqual(search(fixture.env, "zebra").map((item) => item.session), ["ses_twice", "ses_once"])
+  const report = search(fixture.env, "zebra report").map((item) => item.session)
+  assert.deepEqual(report, ["ses_twice", "ses_once"], "a rare word repeated outranks a single mention")
+  const common = search(fixture.env, "report").map((item) => item.session)
+  assert.equal(common.length, 10)
+  assert.deepEqual(common.slice(0, 8), Array.from({ length: 8 }, (_, index) => `ses_common_${7 - index}`),
+    "a word in most messages carries little weight, so recency decides among near-equal matches")
+  assert.deepEqual(search(fixture.env, "lifecycle validation").map((item) => item.session), ["ses_phrase", "ses_scattered"])
+  assert.deepEqual(search(fixture.env, "tieword").map((item) => item.session), ["ses_tie_new", "ses_tie_old"])
+  assert.deepEqual(search(fixture.env, "quokka the").map((item) => item.session), ["ses_rare", "ses_repeats"],
+    "extra mentions of a rare word outweigh extra mentions of a common one")
+
+  const titled = search(fixture.env, "and report").map((item) => item.session)
+  assert.equal(titled.length, 8, "'and' in a title satisfies the word for that session's messages")
+  assert.deepEqual(titled.slice().sort(), Array.from({ length: 8 }, (_, index) => `ses_common_${index}`).sort())
+  assert.deepEqual(titled, titled.slice().sort().reverse(), "common title words tie, so recency orders them")
+
   write(fixture, (database) => {
-    addSession(database, "ses_child", { parent: "ses_top", directory: fixture.project, title: "Child" })
-    addMessage(database, "ses_child", 1, 3000, "assistant", assistant("cached subagent text"))
+    addSession(database, "ses_plain_title", { directory: fixture.project, title: "Plain" })
+    addSession(database, "ses_and_title", { directory: fixture.project, title: "Tea and biscuits" })
+    addMessage(database, "ses_plain_title", 1, 5100, "user", { text: `walrus and ${filler("w", 20)}` })
+    addMessage(database, "ses_and_title", 1, 5000, "user", { text: `walrus and ${filler("w", 20)}` })
   })
+  load(fixture.env)
+  assert.deepEqual(search(fixture.env, "walrus and").map((item) => item.session), ["ses_plain_title", "ses_and_title"],
+    "a word in many titles adds no title score, so the newer message wins")
+})
 
-  assert.deepEqual(stream(fixture.env).map((item) => item.text), ["top question"])
-  assert.equal(existsSync(cachedChild), false)
+test("supports exact phrases, exclusions, and case-sensitive capitals, with highlighted excerpts", () => {
+  const fixture = setup()
+  const lead = Array.from({ length: 40 }, (_, index) => `word${index}`).join(" ")
+  write(fixture, (database) => {
+    addSession(database, "ses_a", { directory: fixture.project, title: "A" })
+    addMessage(database, "ses_a", 1, 1000, "user", { text: `${lead} add beta and gamma validation` })
+    addMessage(database, "ses_a", 2, 1100, "user", { text: "gamma then beta, not the phrase" })
+    addMessage(database, "ses_a", 3, 1200, "user", { text: "RBA upper and rba lower" })
+    addMessage(database, "ses_a", 4, 1300, "user", { text: "only rba lower" })
+    addMessage(database, "ses_a", 5, 1400, "user", { text: `early beta mention ${lead} ${lead} ${lead} beta validation beta then validation` })
+  })
+  load(fixture.env)
 
-  const picker = run(["--sessions"], fixture.env)
-  assert.equal(picker.status, 0, picker.stderr)
-  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
+  const phrase = search(fixture.env, '"beta and gamma"')
+  assert.deepEqual(phrase.map((item) => item.seq), ["1"])
+  assert.match(phrase[0].text, /^… .*word\d+ add beta and gamma validation$/)
+  assert.doesNotMatch(phrase[0].text, /word0 /)
+  assert.match(phrase[0].raw, /\x1b\[7mbeta and gamma\x1b\[27m/)
+
+  assert.deepEqual(search(fixture.env, "beta gamma").map((item) => item.seq).sort(), ["1", "2"])
+  const typed = search(fixture.env, "beta validation")
+  assert.deepEqual(typed.map((item) => item.seq), ["5", "1"])
+  assert.match(typed[0].text, /beta validation beta then validation$/, "the excerpt starts at the words as typed, not the first lone word")
+  assert.doesNotMatch(typed[0].text, /early beta/)
+  assert.deepEqual(search(fixture.env, "beta !phrase").map((item) => item.seq).sort(), ["1", "5"])
+  assert.deepEqual(search(fixture.env, "RBA").map((item) => item.seq), ["3"])
+  assert.deepEqual(search(fixture.env, "rba").map((item) => item.seq).sort(), ["3", "4"])
 })
 
 test("excludes archived sessions and non-text, synthetic, and non-chat messages", () => {
@@ -165,8 +248,8 @@ test("excludes archived sessions and non-text, synthetic, and non-chat messages"
     addMessage(database, "ses_live", 2, 1100, "system", { text: "system prompt" })
     addMessage(database, "ses_archived", 1, 2000, "user", { text: "archived text" })
   })
-
-  assert.deepEqual(stream(fixture.env).map((item) => item.text), ["visible answer"])
+  load(fixture.env)
+  assert.deepEqual(search(fixture.env).map((item) => item.text), ["visible answer"])
 })
 
 test("keeps a private per-session cache and re-reads only sessions whose messages changed", () => {
@@ -178,7 +261,7 @@ test("keeps a private per-session cache and re-reads only sessions whose message
     addMessage(database, "ses_b", 1, 2000, "user", { text: "first b" })
   })
   const databaseBefore = readFileSync(fixture.databasePath)
-  stream(fixture.env)
+  load(fixture.env)
   assert.deepEqual(readFileSync(fixture.databasePath), databaseBefore)
 
   const directory = cacheDirectory(fixture)
@@ -187,13 +270,15 @@ test("keeps a private per-session cache and re-reads only sessions whose message
   const files = readdirSync(directory)
   assert.equal(files.length, 2)
   for (const file of files) assert.equal(statSync(join(directory, file)).mode & 0o777, 0o600)
+  const index = join(directory, "..", "index.tsv")
+  assert.equal(statSync(index).mode & 0o777, 0o600)
   const cachedA = files.find((file) => file.startsWith("ses_a."))
   const inodeA = statSync(join(directory, cachedA)).ino
   writeFileSync(join(directory, cachedA), "1\t1000\tuser\tserved from cache\n")
 
   write(fixture, (database) => addMessage(database, "ses_b", 2, 3000, "user", { text: "second b" }))
-  const texts = stream(fixture.env).map((item) => item.text)
-  assert.deepEqual(texts, ["second b", "first b", "served from cache"])
+  load(fixture.env)
+  assert.deepEqual(search(fixture.env).map((item) => item.text), ["second b", "first b", "served from cache"])
 
   const after = readdirSync(directory)
   assert.equal(after.length, 2)
@@ -201,18 +286,54 @@ test("keeps a private per-session cache and re-reads only sessions whose message
   assert.equal(after.some((file) => files.includes(file) && file.startsWith("ses_b.")), false)
 })
 
-test("pauses between batches once the eager window is loaded", () => {
+test("drops cached subagent sessions and lists only top-level sessions", () => {
   const fixture = setup()
   write(fixture, (database) => {
-    for (let index = 0; index < 4; index++) {
+    addSession(database, "ses_top", { directory: fixture.project, title: "Top" })
+    addMessage(database, "ses_top", 1, 1000, "user", { text: "top question" })
+  })
+  load(fixture.env)
+  const cachedChild = join(cacheDirectory(fixture), "ses_child.3000-1.tsv")
+  writeFileSync(cachedChild, "1\t3000\tassistant\tcached subagent text\n")
+  write(fixture, (database) => {
+    addSession(database, "ses_child", { parent: "ses_top", directory: fixture.project, title: "Child" })
+    addMessage(database, "ses_child", 1, 3000, "assistant", assistant("cached subagent text"))
+  })
+  load(fixture.env)
+
+  assert.deepEqual(search(fixture.env).map((item) => item.text), ["top question"])
+  assert.equal(existsSync(cachedChild), false)
+
+  const picker = run(["--sessions"], fixture.env)
+  assert.equal(picker.status, 0, picker.stderr)
+  assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
+})
+
+test("pauses before every background batch and reports loading progress", async () => {
+  const fixture = setup()
+  write(fixture, (database) => {
+    for (let index = 0; index < 3; index++) {
       addSession(database, `ses_${index}`, { directory: fixture.project })
       addMessage(database, `ses_${index}`, 1, 1000 + index, "user", { text: `text ${index}` })
     }
   })
   const started = Date.now()
-  const lines = stream({ ...fixture.env, OCG_EAGER: "1", OCG_BATCH: "1", OCG_PAUSE: "0.3" })
-  assert.equal(lines.length, 4)
+  load({ ...fixture.env, OCG_BATCH: "1", OCG_PAUSE: "0.3" })
   assert.ok(Date.now() - started >= 900, `expected three 0.3s pauses, took ${Date.now() - started}ms`)
+  assert.doesNotMatch(run(["__status"], fixture.env).stdout, /loading/)
+
+  write(fixture, (database) => {
+    addSession(database, "ses_3", { directory: fixture.project })
+    addMessage(database, "ses_3", 1, 2000, "user", { text: "not loaded yet" })
+  })
+  const loader = spawn(script, ["__load"], { env: { ...fixture.env, OCG_PAUSE: "30" }, stdio: "ignore" })
+  const index = join(cacheDirectory(fixture), "..", "index.tsv")
+  for (let attempt = 0; attempt < 100 && !readFileSync(index, "utf8").includes("ses_3"); attempt++) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 20))
+  }
+  assert.match(run(["__status"], fixture.env).stdout, /1 older chat loading, Ctrl-R refreshes/)
+  assert.deepEqual(search(fixture.env, "text").map((item) => item.session).sort(), ["ses_0", "ses_1", "ses_2"])
+  loader.kill()
 })
 
 test("removes the previous cache formats", () => {
@@ -225,17 +346,17 @@ test("removes the previous cache formats", () => {
     addSession(database, "ses_a", { directory: fixture.project })
     addMessage(database, "ses_a", 1, 1000, "user", { text: "hello" })
   })
-  stream(fixture.env)
+  load(fixture.env)
   assert.equal(existsSync(legacy), false)
   assert.equal(existsSync(join(fixture.cache, "opencode-search", "messages.tsv")), false)
 
   const plainText = join(cacheDirectory(fixture), "ses_a.1000-1.txt")
   writeFileSync(plainText, "hello\n")
-  stream(fixture.env)
+  load(fixture.env)
   assert.equal(existsSync(plainText), false)
 })
 
-test("resumes the selected session from its directory", () => {
+test("caches the newest chats before the picker opens and resumes the selected session", () => {
   const fixture = setup()
   write(fixture, (database) => {
     addSession(database, "ses_top", { directory: fixture.project, title: "Top" })
@@ -246,8 +367,9 @@ test("resumes the selected session from its directory", () => {
   assert.equal(content.status, 0, content.stderr)
   assert.deepEqual(readFileSync(fixture.capture, "utf8").trim().split("\t"), [fixture.project, "--session ses_top"])
   const fzfArgs = readFileSync(fixture.env.OCG_FZF_ARGS, "utf8")
-  assert.match(fzfArgs, /^--exact$/m)
-  assert.match(fzfArgs, /^--read0$/m)
+  assert.match(fzfArgs, /^--disabled$/m)
+  assert.match(fzfArgs, /^change:reload\(.* __search \{q\}\)$/m)
+  assert.match(fzfArgs, /^ctrl-r:reload\(.* __search \{q\}\)$/m)
 
   rmSync(fixture.capture)
   const picker = run(["--sessions", "Top"], fixture.env)
@@ -260,7 +382,7 @@ test("resumes the selected session from its directory", () => {
   assert.match(outdated.stderr, /fzf 0\.56 or newer is required; found 0\.44\.1/)
 })
 
-test("stops the background loader when the picker exits early", async () => {
+test("stops the background loader when the picker exits", async () => {
   const fixture = setup()
   write(fixture, (database) => {
     for (let index = 0; index < 20; index++) {
@@ -316,7 +438,7 @@ test("previews the conversation at the selected message, formatted as chat", () 
   const database = new DatabaseSync(legacy)
   database.exec("CREATE TABLE session (id TEXT PRIMARY KEY)")
   database.close()
-  const refused = run(["__stream"], { ...fixture.env, OPENCODE_DB_PATH: legacy })
+  const refused = run(["__load"], { ...fixture.env, OPENCODE_DB_PATH: legacy })
   assert.equal(refused.status, 1)
   assert.match(refused.stderr, /requires OpenCode V2/)
 })
