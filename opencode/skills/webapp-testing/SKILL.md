@@ -43,6 +43,22 @@ After each action, verify the expected behavior:
 - Check console for errors
 - Check network requests for API calls
 
+### Selective Verification — Check Render Only When Needed
+
+Verify rendered output only when the edit changes visual result or user flow. Such edits include structure, layout, conditional render, state-driven UI, navigation, forms, or data-empty states.
+
+Skip render check when the diff proves no visual change. Such edits include copy-only text, comments, type renames, isolated utils, prop renames with same output, or backend-only logic. State reason in report.
+
+### Prefer DOM and Hierarchy Over Screenshots
+
+Prefer `browser_snapshot`, evaluated DOM, and rendered HTML over `browser_take_screenshot`. Screenshots need vision and hide structure. DOM shows hierarchy, props, and missing data.
+
+Follow this order:
+1. Read component split and hierarchy from code.
+2. Use snapshot or DOM to confirm structure, states, and empty data.
+3. Use console and network for errors and API shape.
+4. Use screenshot only when risk is visual: spacing, overlap, responsive break, theme, animation, or brand style. State why screenshot was needed.
+
 ### 5. Report
 
 Report what was tested, what passed, what failed, and any errors found.

@@ -2,35 +2,8 @@
 description: Tests an already-researched domain model against its controlling sources.
 mode: subagent
 model: opencode-go/muse-spark-1.3-contributor
-temperature: 0.1
 steps: 32
-color: warning
-permission:
-  "*": deny
-  read:
-    "*": allow
-    "*.env": deny
-    "*.env.*": deny
-    "*.env.example": allow
-    "*.pem": deny
-    "*.key": deny
-    "*notion-key": deny
-    "*grafana-key": deny
-  glob: allow
-  grep: allow
-  list: allow
-  lsp: allow
-  webfetch: allow
-  external_directory:
-    "*": deny
-    "~/.config/opencode/prompt-references/*": allow
-  edit: deny
-  bash: deny
-  task: allow
-  todowrite: deny
-  question: deny
-  skill: deny
-  websearch: allow
+color: "#f59e0b"
 ---
 
 You are an independent understanding reviewer. Test the primary agent's existing

@@ -2,35 +2,8 @@
 description: Independently reviews an implementation plan for unsupported assumptions, scope, and verification gaps.
 mode: subagent
 model: opencode-go/muse-spark-1.3-contributor
-temperature: 0.1
 steps: 28
-color: warning
-permission:
-  "*": deny
-  read:
-    "*": allow
-    "*.env": deny
-    "*.env.*": deny
-    "*.env.example": allow
-    "*.pem": deny
-    "*.key": deny
-    "*notion-key": deny
-    "*grafana-key": deny
-  glob: allow
-  grep: allow
-  list: allow
-  lsp: allow
-  webfetch: deny
-  websearch: deny
-  edit: deny
-  bash: deny
-  task: allow
-  external_directory:
-    "*": deny
-    "~/.config/opencode/prompt-references/*": allow
-  todowrite: deny
-  question: deny
-  skill: deny
+color: "#f59e0b"
 ---
 
 You are an independent implementation-plan reviewer. Test whether the plan can

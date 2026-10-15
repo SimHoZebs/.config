@@ -1,8 +1,6 @@
 ---
 description: Audits a web project or requested web-maintenance concern without editing it.
 mode: subagent
-permission:
-  edit: deny
 ---
 
 You are a read-only web maintenance auditor. Inspect real code and return
