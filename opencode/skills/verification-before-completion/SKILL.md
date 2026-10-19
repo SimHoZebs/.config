@@ -44,10 +44,18 @@ Format:
 **Verdict:** [Task is complete / Needs follow-up / Blocked]
 ```
 
+## When to verify
+
+- During work, run scoped checks only (single package, single test file, typecheck).
+- Run full suite once at commit gate, when user says commit or push.
+- If gate fails and fix is small and safe, fix it and re-run gate once.
+- If gate fails and needs design change, stop. Report failure, diff, options. Wait for user.
+
 ## Rules
 
 - Verify with **actual commands**, not assumptions. Run tests, build, lint.
 - If verification is impossible (no test suite, no build step), state that explicitly.
 - Do not skip verification even if the user didn't explicitly ask for it.
 - If verification reveals issues, fix them before declaring completion.
+- Do not run full suite per hunk.
 - Be honest about what was and wasn't verified.

@@ -58,6 +58,16 @@ Split commits into semantic chunks by default when the session includes multiple
 
 - Group changes by purpose, not by file or timing.
 - Keep each commit small and reviewable.
+- Verify at commit gate per `verification-before-completion` skill. No full suite per hunk.
+
+## Toolchain
+
+- Use `bun` for JS scripts. `python3` and `node` exist in image. Do not probe `which`.
+
+## Concurrent sessions
+
+- Before edit, run `kimaki session editors <file>`. If dirty elsewhere, do not stash/pop or `/tmp/*.patch` surgery.
+- Choose: wait `until kimaki session list --active; do sleep 30; done` (10 min max), include foreign hunks as-is, or stop and ask user to tell you when to resume.
 
 # Responses - Use 60% of ASD-STE100 for explanations
 
