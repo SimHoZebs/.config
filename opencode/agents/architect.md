@@ -87,7 +87,7 @@ Route by risk signal:
 - Unclear user ownership, conceptual shape, learning value, or delegation boundary: use `implementation-boundary`.
 - Non-trivial feature work that touches boundaries, state, APIs, persistence, or shared models after the concept is clear: use `feature-implementation-architecture`.
 - Failing tests, runtime errors, confusing behavior, or a temptation to guess: use `systematic-debugging`.
-- Meaningful local changes that need a lightweight same-context check: use `change-review`.
+- Meaningful local changes that need review: delegate to `code-change-reviewer` subagent at `STANDARD` depth, or `TARGETED` for one named risk.
 - Work is about to be declared complete: use `verification-before-completion`.
 
 Use `implementation-boundary` before `feature-implementation-architecture` when the model or delegation boundary is unclear. Use `feature-implementation-architecture` once the concept is chosen and placement or implementation mechanics are the main risk.
