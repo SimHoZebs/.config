@@ -1,0 +1,7 @@
+# Frontend domain plus visual ownership
+
+Scope: client domain copies of server logic, date or time math, domain helpers, server-computable inferences, cycle or schedule trackers. Plus visual ownership: repeated badges, controls, surfaces, links, stacks, spacing, focus states, responsive rules.
+
+Inspect for: server-computable summaries rebuilt on client, copied date helpers, dead domain paths, personal extensions with no mandate. Concrete triggers: same content opened two or more ways, repeated gap or padding rules, repeated slide or transition implementations, repeated table headers or row layouts, repeated toolbar or skeleton or section-header styles. Open each way the user can reach it. Snapshot or screenshot the rendered result. Compare side by side. One visual contract gets one presentational owner. Parents own sibling gap and order. Children own internal composition. Do not merge components with distinct interaction or lifecycle unless the difference fits behind parent-owned configuration.
+
+Return: user-observable behavior, `file:line`, code terms used, ordered steps the code takes today, maintenance cost, smallest correction, verification check. Name the single server summary or single presentational owner that replaces each copy. When keeping separate, name the configuration that would have unified them and why it fails. Opened-every-way plus screenshot comparison is the verification for visual findings.
