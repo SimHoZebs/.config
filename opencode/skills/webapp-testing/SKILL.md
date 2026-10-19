@@ -59,6 +59,11 @@ Follow this order:
 3. Use console and network for errors and API shape.
 4. Use screenshot only when risk is visual: spacing, overlap, responsive break, theme, animation, or brand style. State why screenshot was needed.
 
+- After screenshot, always `read` the image and judge overflow/overlap/cut text yourself.
+- Never write per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`). Use the shared helper from project root or `frontend/` dir:
+  `node ~/.config/opencode/helpers/shoot.cjs <url> ~/tmp-shots/<name>.png [--full]`.
+- Output to `~/tmp-shots/` only. Never `mkdir /tmp/opencode`. Never commit shots.
+
 ### 5. Report
 
 Report what was tested, what passed, what failed, and any errors found.
