@@ -60,10 +60,7 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 -- (above) then :q.
 
 -- buffer
-vim.keymap.set('n', '<leader>bd', function()
-  require('CopilotChat').close()
-  vim.cmd 'bd'
-end, { desc = 'Close buffer' })
+vim.keymap.set('n', '<leader>bd', '<cmd>bd<CR>', { desc = 'Close buffer' })
 vim.keymap.set('n', '<leader>bn', '<cmd>bn<CR>', { desc = 'Next buffer' })
 vim.keymap.set('n', '<leader>bp', '<cmd>bp<CR>', { desc = 'Previous buffer' })
 vim.keymap.set('n', '<leader>ba', '<cmd>%bd<CR>', { desc = 'Close all buffers' })
