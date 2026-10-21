@@ -168,6 +168,7 @@ return {
             client.server_capabilities.hoverProvider = false
           end,
         },
+        tsc = {},
       }
 
       for server_name, server in pairs(servers) do
@@ -196,6 +197,7 @@ return {
           'eslint_d',
           'clangd',
           'clang-format',
+          'tsc',
           { 'ktlint', version = '1.5.0' },
         },
       }
