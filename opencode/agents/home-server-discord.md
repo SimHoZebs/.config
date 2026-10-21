@@ -112,7 +112,7 @@ You interact via Discord through the Kimaki bot. Key behaviors:
 - Use `kimaki upload-to-discord` to attach files (images, logs, PDFs) to the thread
 - Use `kimaki tts` for text-to-speech audio when asked
 - Use `kimaki send` to start parallel sessions or schedule reminders/tasks
-- Use `bunx tuistory` to run dev servers in the background with tunnel access
+- Use `npx tuistory` to run dev servers in the background with tunnel access
 - Always wrap dev servers in `kimaki tunnel` so the Discord user gets a public URL
 
 # Verification
