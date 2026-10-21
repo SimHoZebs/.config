@@ -1,52 +1,7 @@
-# Documentation audit reference
+# Documentation plus decision logs
 
-Procedure for trimming and deduplicating project docs. Run phases in order;
-re-read every touched file at the end.
+Scope: project docs, area READMEs, API contracts, observability docs, decision logs, generated specs, plus the code they describe.
 
-## 0. Inventory
+Inspect for: verbose or editorial prose, duplicated facts across files, pointer-only sections, orphaned fragments from deletions, dangling heading anchors, false claims exposed by removals, numbers repeated in prose, doc claims that contradict the code. Build an ownership map with one owner per fact: glossary owns terms, API doc owns route contracts, area READMEs own local mechanics, observability doc owns log semantics, decision logs own history. Cross-check doc claims against the code they describe. Flag claims that contradict implementation: routes, shapes, error codes, limits, log signals, stale code examples. Machine-checked contracts (sync scripts, generated specs, required strings and anchors) must survive verbatim. Preserve heading anchors other docs link to; update inbound links when a heading goes. Sanctioned dual-homes: per-route numbers plus central limits table, wire header plus log table. Delete sections whose sole content points at another file; relocate buried owned facts first. Keep inline contextual links and one-line safety-critical navigation.
 
-- List all `*.md` (exclude node_modules/dist/build output).
-- Record each file's main responsibility — its reason to exist.
-- Record machine-checked contracts that constrain edits (sync scripts,
-  generated specs, required strings/anchors). These must survive verbatim.
-
-## 1. Trim verbosity, remove editorial
-
-- Delete: opinions, justifications, backstory, adjectives, restatements.
-- Keep: factual contracts (routes, shapes, error codes, limits, log signals,
-  commands, config tables).
-- Preserve heading anchors other docs link to. If a heading goes, update its
-  inbound links.
-
-## 2. Deduplicate by ownership
-
-- Build an ownership map: each fact lives in exactly one file.
-- Typical split: glossary owns terms; API doc owns route contracts; area
-  READMEs own local mechanics; observability doc owns log semantics;
-  decision logs own history.
-- Remove duplicates from non-owners. Sanctioned exceptions, kept in both:
-  contract-vs-index (per-route numbers + central limits table),
-  contract-vs-signal (wire header + log table).
-- Fix false attribution ("doc A defines X" when it doesn't).
-
-## 3. Dissolve pointer-only sections
-
-- If a section's sole content is "X lives in file Y", delete the section.
-- Relocate owned facts buried in it to their owner section; delete the rest.
-- Keep: inline contextual links inside otherwise-owned sections, and one-line
-  safety-critical navigation (verification entry points, config locations).
-
-## 4. Audit leftovers
-
-- Re-read every touched file in full. Look for: orphaned words from
-  deletions, ungrammatical fragments, dangling anchors, false claims the
-  removals exposed, numbers repeated in prose.
-- Grep repeated terms/numbers across docs to confirm single ownership.
-- Confirm no pointer-only sections or paragraphs remain.
-
-## 5. Format and verify
-
-- Check what the repo formatter covers (e.g. oxfmt ignores `**/*.md`).
-  For markdown with no configured formatter, use Prettier defaults
-  (`proseWrap: preserve` — structural normalization only, no prose reflow).
-- Run the formatter check and all project contract checks.
+Return concise findings using `reporting.md`: relevant background, the direct change, source evidence, and verification. Name the owner file for moved facts and the code behind stale claims. For later authorized edits, verify complete changed files, repeated terms/numbers, formatter checks, and project contracts.

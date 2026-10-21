@@ -4,4 +4,4 @@ Scope: stores, remote hooks, adapters, contracts, clients, stream handling, clie
 
 Inspect for: parallel model shapes, parallel persisted schemas, snapshots for recomputable data, client cache over server cache, mirrored adapter branches, store epochs that duplicate query state.
 
-Return: user-observable behavior, `file:line`, code terms used, ordered steps the code takes today, maintenance cost, smallest correction, verification check. State which architectural directive constrains removal. Name the measured or structural render cost.
+Return concise findings using `reporting.md`: relevant background, the direct change, source evidence, and verification. State an architectural directive when it constrains the proposed removal. Distinguish measured render cost from structural cost.
