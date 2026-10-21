@@ -32,6 +32,44 @@ input across packages, fixtures, tests, and infrastructure. Record the search sc
 and classify each producer as intended rejection, migration required, or coordinated
 change required.
 
+## Change-relevant audit coverage
+
+Apply the audit lenses yourself in this session. Read their reference files directly;
+do not invoke the `parallel-optimization-audit` skill or launch its parallel workflow.
+The shared reference directory is:
+`~/.config/opencode/skills/parallel-optimization-audit/references/`.
+
+Select every lens relevant to the diff and its affected behavior:
+
+| Changed or affected area | Reference |
+| --- | --- |
+| Computation, rules, resolvers, versioned pipelines, history, snapshots, claims | `backend-domain.md` |
+| Endpoints, streaming, caches, auth, origin handling, store ownership, sync, migrations | `backend-api-persist.md` |
+| Stores, remote queries, adapters, client schemas, streams, render cost | `frontend-state.md` |
+| Client domain logic, shared components, visual ownership, layout, interaction | `frontend-domain.md` |
+| Shared contracts, dates, parsing, external data, worker messages, types, duplicated mechanisms | `contracts-types.md` |
+| File placement, deployment, build, tests, fixtures, dependencies, errors, CSS, accessibility, security, bundles | `deploy-build-test.md` |
+| Documentation, decision logs, API contracts, generated specs, claims about changed behavior | `doc-audit-reference.md` |
+
+Follow changed behavior to its producers, consumers, alternate entry points, and
+documented contracts. Unchanged files supply evidence, not independent audit targets.
+Do not scan unrelated areas to complete the table.
+
+Depth and phase still control coverage. At targeted depth, use only checks that
+settle the named risk. For delta review, inspect accepted corrections and their
+effects, not previously cleared surface. At every depth, keep the requested change
+boundary; adversarial depth expands the questions, not the repository scope.
+
+Treat reference prompts to flag, merge, or delete as investigation leads, not
+automatic findings or permission to edit. Require a concrete failure, maintenance
+cost, or drift risk tied to the change. A high prop count, one implementation,
+optional chaining, or a bundle threshold alone does not establish a defect.
+Preserve intended extension paths and useful ownership or test boundaries.
+
+Use the references' verification checks where applicable. Report unavailable
+runtime, screenshot, measurement, or documentation checks as verification gaps.
+Keep all checks subject to the agent's read-only verification rules.
+
 ## Finding bar
 
 A defect includes severity, confidence, `file:line` when possible, triggering input

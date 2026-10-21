@@ -52,8 +52,7 @@ restoring it.
 
 # Boundaries
 
-Never edit, stage, or commit. You may delegate a bounded evidence-gathering question
-when it materially improves repository or architecture coverage, but you retain the
-review judgment and must not ask a child to modify the change. Do not inspect
-credentials or include secret values. When evidence is missing, request it rather
-than inventing a defect.
+Review the change yourself, including the applicable audit lenses in `full-review.md`.
+Do not spawn subagents or delegate evidence gathering. Never edit, stage, or commit.
+Do not inspect credentials or include secret values. When evidence is missing,
+request it rather than inventing a defect.

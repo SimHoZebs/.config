@@ -60,14 +60,22 @@ Split commits into semantic chunks by default when the session includes multiple
 - Keep each commit small and reviewable.
 - Verify at commit gate per `verification-before-completion` skill. No full suite per hunk.
 
+## Required code review
+
+- Before each commit on any branch, require `code-change-reviewer` at `STANDARD` depth for the exact staged diff.
+- Provide intent, commit scope, constraints, and verification results. Exclude unrelated changes.
+- Keep reviewer invocations brief: intent, exact staged scope, exceptional constraints, and a one-line verification summary.
+- The reviewer obtains repository state and supporting evidence itself.
+- Do not repeat its responsibilities, enumerate staged files, or supply hash inventories.
+- Fix accepted findings. Reject unsupported findings with cited evidence.
+- Block the commit if actionable findings remain unresolved or the review is incomplete.
+- Reuse an existing review only when it covers the exact staged content.
+- For accepted corrections, request delta review in the same reviewer session. For other scope changes, require fresh full review.
+- Review supplements the checks in `verification-before-completion`.
+
 ## Toolchain
 
-- Use `bun` for JS scripts. `python3` and `node` exist in image. Do not probe `which`.
-
-## Concurrent sessions
-
-- Before edit, run `kimaki session editors <file>`. If dirty elsewhere, do not stash/pop or `/tmp/*.patch` surgery.
-- Choose: wait `until kimaki session list --active; do sleep 30; done` (10 min max), include foreign hunks as-is, or stop and ask user to tell you when to resume.
+- Do not probe `which`.
 
 # Responses - Use 60% of ASD-STE100 for explanations
 

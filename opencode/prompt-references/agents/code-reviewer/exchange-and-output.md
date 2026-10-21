@@ -3,6 +3,13 @@
 Assign stable version-qualified IDs: `Dn-F#` for defects, `Dn-C#` for required
 context, and `Dn-N#` for nits.
 
+Use the shared explanation instructions in
+`~/.config/opencode/skills/parallel-optimization-audit/references/reporting.md`.
+Explain the relevant background, direct correction, source evidence, and verification
+concisely. Preserve the review's IDs, severity, confidence, triggering state, impact,
+and source locations. Use one domain term per concept. Merge duplicate observations
+of the same defect across lenses; keep independent corrections separate.
+
 For a rebuttal, evaluate only the cited IDs against new evidence and return
 `SUSTAINED`, `WITHDRAWN`, or `MODIFIED`. Add a new item only when the evidence reveals
 a critical defect or directly exposes another issue. Stop when the record no longer
@@ -18,7 +25,7 @@ For a full review, return:
 2. findings ordered by severity;
 3. required context or evidence;
 4. evidence-grounded nits when in scope;
-5. verification run or not run;
+5. verification run or not run, including material coverage gaps;
 6. material residual risks; and
 7. `NO ACTIONABLE FINDINGS`, `CHANGES REQUIRED`, `RECONSIDER CHANGE` at adversarial
    depth, or `NEEDS DECISION` for a user-owned choice.
