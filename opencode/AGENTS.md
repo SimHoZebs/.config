@@ -46,12 +46,6 @@ Good:
 - Lead with the answer. Keep only context that changes decision or action.
 - Define a new term at first use. Link evidence to component, decision, and result.
 
-# Shared Systems
-
-Before writing to a shared system, show the exact final content and receive
-explicit approval. Approval of a plan or summary does not authorize unseen
-content.
-
 # Commits
 
 Split commits into semantic chunks by default when the session includes multiple changes.
