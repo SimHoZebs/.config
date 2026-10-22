@@ -1,15 +1,15 @@
-# Full plan review
+# Plan review
 
-At targeted depth, apply only checks relevant to the named risk. At standard depth,
-skip zero-change and alternative-design checks. At adversarial depth, apply all
-relevant checks.
+Review the proposed changes and their affected behavior. Let evidence determine
+which checks and surrounding code need investigation.
 
 1. Reconstruct the desired outcome independently from the proposed solution.
-2. At adversarial depth, establish the concrete problem and consequence of no
-   change, then look for a materially smaller design that meets the outcome.
+2. Establish the concrete problem. Consider the consequence of no change and
+   smaller designs when these affect the plan's justification or scope.
 3. Make each plan step, abstraction, dependency, migration, compatibility branch,
    process, and verification activity earn its place.
-4. Inspect relevant code, tests, documentation, history, and established patterns.
+4. Inspect relevant code, tests, documentation, history, and established patterns,
+   including untouched files that affect the plan's assumptions or consequences.
 5. Identify load-bearing assumptions and distinguish verified facts from inference.
 6. Test plausible failure paths across ownership, dependency direction, state
    lifetime, contracts, persistence, security, recovery, observability, and rollback.

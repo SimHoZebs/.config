@@ -27,6 +27,16 @@ test("appends the review policy to every primary agent's model context", async (
   }
 })
 
+test("uses affected behavior instead of a review-tier selector", async () => {
+  const hook = await contextHook()
+  const event = { agent: "build", system: [] }
+  await hook(event)
+  const policy = event.system[0].text
+  assert.match(policy, /affected behavior/i)
+  assert.match(policy, /untouched/i)
+  assert.doesNotMatch(policy, /review depth|\bChoose\s+`[A-Z]+`/i)
+})
+
 test("leaves subagent context unchanged", async () => {
   const hook = await contextHook()
   for (const agent of ["plan-reviewer", "code-change-reviewer", "understanding-reviewer", "explore"]) {

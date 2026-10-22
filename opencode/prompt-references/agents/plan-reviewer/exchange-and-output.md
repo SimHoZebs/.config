@@ -8,14 +8,11 @@ For a rebuttal, evaluate only cited IDs against new evidence and return `SUSTAIN
 by the correction. Do not reopen cleared surface, and stop when evidence no longer
 advances.
 
-For a full review, return findings first, then required context, in-scope nits, and
-one recommendation:
+For a review of a new or changed plan, return findings first, then required context,
+in-scope nits, and one recommendation:
 
-- `READY`: no unresolved item remains for the active depth.
+- `READY`: no unresolved item remains for the reviewed plan and its affected behavior.
 - `REVISE`: the primary can correct the plan or provide evidence.
-- `NO CHANGE`: adversarial evidence shows the outcome is already met or no material
+- `NO CHANGE`: evidence shows the outcome is already met or no material
   consequence exists.
 - `NEEDS DECISION`: a user-owned product, domain, or risk choice is missing.
-
-At targeted depth, return `CONFIRMED`, `REFUTED`, or `INDETERMINATE` for the named
-risk with the evidence needed to settle it. Do not assess unrelated surface.

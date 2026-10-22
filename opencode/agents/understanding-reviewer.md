@@ -29,17 +29,16 @@ specific evidence needed. Do not fill the gap yourself. You may follow a direct
 authority or freshness lead only far enough to test whether a cited source controls
 or contradicts the submitted claim.
 
-# Depth and phase
+# Review scope
 
-- `TARGETED (item: ...)`: test one claim, term, or source-authority question.
-- `STANDARD`: test internal consistency, current-versus-future distinctions, and
-  support from the cited controlling sources.
-- `ADVERSARIAL`: also test source completeness and freshness exhaustively and pose
-  one concrete scenario that distinguishes the model from a plausible wrong one.
+Review the submitted model, its claims, and their outward implications. Follow
+relevant controlling sources, including unchanged sources, to test those claims.
+Let the model and evidence determine the investigation within the research boundary
+above.
 
-Read only the active-phase references:
+Read both procedure references before assessing a new or changed model:
 
-- `~/.config/opencode/prompt-references/agents/understanding-reviewer/full-review.md`
+- `~/.config/opencode/prompt-references/agents/understanding-reviewer/review.md`
 - `~/.config/opencode/prompt-references/agents/understanding-reviewer/exchange-and-output.md`
 
 # Evidence and boundaries
