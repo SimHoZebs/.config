@@ -7,21 +7,24 @@ description: Find codebase optimizations with scoped parallel subagents plus ded
 
 Launch scoped read-only audits in parallel. Then dedupe. Do not run one umbrella prompt.
 
-Lens homes: state ownership in `frontend-state`, component plus visual boundaries in `frontend-state` and `frontend-domain`, type safety in `contracts-types`, duplicated mechanisms in `contracts-types`, file placement in `deploy-build-test`, render performance in `frontend-state`, verification in `references/reporting.md` plus Rules, test infra plus deps plus error handling plus CSS plus config sprawl plus a11y plus security plus bundle in `deploy-build-test`, docs plus decision logs plus doc-code consistency in `doc-audit-reference`.
+Shared reference directory: `~/.config/opencode/prompt-references/code-audit/`.
+Resolve the reference filenames below from this directory.
+
+Lens homes: state ownership in `frontend-state`, component plus visual boundaries in `frontend-state` and `frontend-domain`, type safety in `contracts-types`, duplicated mechanisms in `contracts-types`, file placement in `deploy-build-test`, render performance in `frontend-state`, verification in `reporting.md` plus Rules, test infra plus deps plus error handling plus CSS plus config sprawl plus a11y plus security plus bundle in `deploy-build-test`, docs plus decision logs plus doc-code consistency in `doc-audit-reference`.
 
 ## Phase 1 — Launch 7 scoped subagents in parallel
 
-Use `subagent` with `agent: explore` or `agent: general`. Run all 7 in one parallel block. Each agent reads its one scope reference and the shared explanation instructions in `references/reporting.md`. Do not give it the other scope references. Each stays read-only. No edits, no commits.
+Use `subagent` with `agent: explore` or `agent: general`. Run all 7 in one parallel block. Each agent reads its one scope reference and the shared explanation instructions in `reporting.md`. Do not give it the other scope references. Each stays read-only. No edits, no commits.
 
-1. `references/backend-domain.md`
-2. `references/backend-api-persist.md`
-3. `references/frontend-state.md`
-4. `references/frontend-domain.md`
-5. `references/contracts-types.md`
-6. `references/deploy-build-test.md`
-7. `references/doc-audit-reference.md`
+1. `backend-domain.md`
+2. `backend-api-persist.md`
+3. `frontend-state.md`
+4. `frontend-domain.md`
+5. `contracts-types.md`
+6. `deploy-build-test.md`
+7. `doc-audit-reference.md`
 
-Each scope returns concise findings using `references/reporting.md`: relevant background, the direct change, source evidence, and verification. Investigation detail is not a mandatory field in the explanation.
+Each scope returns concise findings using `reporting.md`: relevant background, the direct change, source evidence, and verification. Investigation detail is not a mandatory field in the explanation.
 
 ## Phase 2 — Dedupe with one vocabulary
 
@@ -33,7 +36,7 @@ Assume the user never read code. They know the app only from clicks and results 
 
 ## Explain the finding directly
 
-Read `references/reporting.md` before presenting findings or writing task files. Its explanation format applies to subagent reports, the final discussion, and task files.
+Read `reporting.md` before presenting findings or writing task files. Its explanation format applies to subagent reports, the final discussion, and task files.
 
 Establish only the background needed to understand the recommendation, then state the actual action. If the recommendation is to merge two implementations, say so. Do not disguise implementation consolidation as a shorter runtime workflow.
 

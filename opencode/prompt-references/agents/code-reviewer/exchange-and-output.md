@@ -4,7 +4,7 @@ Assign stable version-qualified IDs: `Dn-F#` for defects, `Dn-C#` for required
 context, and `Dn-N#` for nits.
 
 Use the shared explanation instructions in
-`~/.config/opencode/skills/parallel-optimization-audit/references/reporting.md`.
+`~/.config/opencode/prompt-references/code-audit/reporting.md`.
 Explain the relevant background, direct correction, source evidence, and verification
 concisely. Preserve the review's IDs, severity, confidence, triggering state, impact,
 and source locations. Use one domain term per concept. Merge duplicate observations

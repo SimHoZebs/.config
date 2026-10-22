@@ -37,7 +37,7 @@ change required.
 Apply the audit lenses yourself in this session. Read their reference files directly;
 do not invoke the `parallel-optimization-audit` skill or launch its parallel workflow.
 The shared reference directory is:
-`~/.config/opencode/skills/parallel-optimization-audit/references/`.
+`~/.config/opencode/prompt-references/code-audit/`.
 
 Select every lens relevant to the diff and its affected behavior:
 
