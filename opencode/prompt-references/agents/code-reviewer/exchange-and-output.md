@@ -19,16 +19,14 @@ For a delta review, report whether each cited finding is `DISCHARGED`, `NOT
 DISCHARGED`, or `PARTIALLY DISCHARGED`, plus defects introduced by that correction.
 Do not reopen previously cleared surface.
 
-For a full review, return:
+For a review of a new or changed target, return:
 
-1. target identity and depth;
+1. target identity and affected behavior;
 2. findings ordered by severity;
 3. required context or evidence;
 4. evidence-grounded nits when in scope;
 5. verification run or not run, including material coverage gaps;
 6. material residual risks; and
-7. `NO ACTIONABLE FINDINGS`, `CHANGES REQUIRED`, `RECONSIDER CHANGE` at adversarial
-   depth, or `NEEDS DECISION` for a user-owned choice.
-
-At targeted depth, replace the full finding set with `CONFIRMED`, `REFUTED`, or
-`INDETERMINATE` for the named risk and the evidence that settles it.
+7. `NO ACTIONABLE FINDINGS`, `CHANGES REQUIRED`, `RECONSIDER CHANGE` when evidence
+   challenges the implementation's justification, or `NEEDS DECISION` for a
+   user-owned choice.

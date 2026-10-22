@@ -62,7 +62,7 @@ Split commits into semantic chunks by default when the session includes multiple
 
 ## Required code review
 
-- Before each commit on any branch, require `code-change-reviewer` at `STANDARD` depth for the exact staged diff.
+- Before each commit on any branch, require `code-change-reviewer` for the exact staged diff and its affected behavior.
 - Provide intent, commit scope, constraints, and verification results. Exclude unrelated changes.
 - Keep reviewer invocations brief: intent, exact staged scope, exceptional constraints, and a one-line verification summary.
 - The reviewer obtains repository state and supporting evidence itself.
@@ -70,7 +70,7 @@ Split commits into semantic chunks by default when the session includes multiple
 - Fix accepted findings. Reject unsupported findings with cited evidence.
 - Block the commit if actionable findings remain unresolved or the review is incomplete.
 - Reuse an existing review only when it covers the exact staged content.
-- For accepted corrections, request delta review in the same reviewer session. For other scope changes, require fresh full review.
+- For accepted corrections, request delta review in the same reviewer session. For other scope changes, require a new review.
 - Review supplements the checks in `verification-before-completion`.
 
 ## Toolchain

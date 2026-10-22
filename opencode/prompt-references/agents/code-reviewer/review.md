@@ -1,11 +1,10 @@
-# Full code review
+# Code review
 
-At targeted depth, apply these checks only to the named risk. At standard depth,
-skip the zero-change and alternative-design checks. At adversarial depth, apply all
-relevant checks.
+Review the change and the existing behavior it affects. Let evidence determine
+which checks and surrounding code need investigation.
 
-1. Establish the requested outcome and, at adversarial depth, the material
-   consequence of making no change.
+1. Establish the requested outcome. Consider the consequence of no change and
+   smaller designs when these affect the implementation's justification or scope.
 2. Make each changed behavior, abstraction, dependency, contract, compatibility
    branch, test, configuration entry, and unrelated hunk earn its place.
 3. Read every changed region and enough callers, consumers, schemas, state
@@ -32,16 +31,18 @@ input across packages, fixtures, tests, and infrastructure. Record the search sc
 and classify each producer as intended rejection, migration required, or coordinated
 change required.
 
-## Change-relevant audit coverage
+## Shared audit references
 
-Apply the audit lenses yourself in this session. Read their reference files directly;
+Read every Markdown file in the shared reference directory before assessing a new
+change. Apply their checks yourself in this session. Read the files directly;
 do not invoke the `parallel-optimization-audit` skill or launch its parallel workflow.
 The shared reference directory is:
 `~/.config/opencode/prompt-references/code-audit/`.
 
-Select every lens relevant to the diff and its affected behavior:
+The table lists the current references. Use their checks where they apply to the
+change and its affected behavior:
 
-| Changed or affected area | Reference |
+| Area | Reference |
 | --- | --- |
 | Computation, rules, resolvers, versioned pipelines, history, snapshots, claims | `backend-domain.md` |
 | Endpoints, streaming, caches, auth, origin handling, store ownership, sync, migrations | `backend-api-persist.md` |
@@ -50,15 +51,20 @@ Select every lens relevant to the diff and its affected behavior:
 | Shared contracts, dates, parsing, external data, worker messages, types, duplicated mechanisms | `contracts-types.md` |
 | File placement, deployment, build, tests, fixtures, dependencies, errors, CSS, accessibility, security, bundles | `deploy-build-test.md` |
 | Documentation, decision logs, API contracts, generated specs, claims about changed behavior | `doc-audit-reference.md` |
+| Explanation, source evidence, terminology, and verification reporting | `reporting.md` |
 
-Follow changed behavior to its producers, consumers, alternate entry points, and
-documented contracts. Unchanged files supply evidence, not independent audit targets.
-Do not scan unrelated areas to complete the table.
+## Investigation scope
 
-Depth and phase still control coverage. At targeted depth, use only checks that
-settle the named risk. For delta review, inspect accepted corrections and their
-effects, not previously cleared surface. At every depth, keep the requested change
-boundary; adversarial depth expands the questions, not the repository scope.
+Follow changed behavior through producers, consumers, callers, alternate entry
+points, schemas, tests, persistence, permissions, and rollback paths. Review relevant
+untouched code as part of that investigation. File modification status does not
+limit what can be relevant.
+
+Use the requested outcome and affected behavior to bound the investigation. Reading
+every reference does not require an unrelated repository-wide audit.
+
+For a follow-up review, inspect the corrections and their effects. Reuse established
+conclusions unless the new change or evidence invalidates them.
 
 Treat reference prompts to flag, merge, or delete as investigation leads, not
 automatic findings or permission to edit. Require a concrete failure, maintenance
