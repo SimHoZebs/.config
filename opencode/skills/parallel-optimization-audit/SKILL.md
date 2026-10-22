@@ -10,19 +10,22 @@ Launch scoped read-only audits in parallel. Then dedupe. Do not run one umbrella
 Shared reference directory: `~/.config/opencode/prompt-references/code-audit/`.
 Resolve the reference filenames below from this directory.
 
-Lens homes: state ownership in `frontend-state`, component plus visual boundaries in `frontend-state` and `frontend-domain`, type safety in `contracts-types`, duplicated mechanisms in `contracts-types`, file placement in `deploy-build-test`, render performance in `frontend-state`, verification in `reporting.md` plus Rules, test infra plus deps plus error handling plus CSS plus config sprawl plus a11y plus security plus bundle in `deploy-build-test`, docs plus decision logs plus doc-code consistency in `doc-audit-reference`.
+Lens homes: state ownership and render performance in `frontend-state`, client domain logic in `frontend-domain`, design vocabulary plus visual ownership plus composition plus layout plus responsive behavior plus interaction plus accessibility in `ui-ux`, type safety and duplicated mechanisms in `contracts-types`, file placement plus test infra plus deps plus error handling plus config sprawl plus security plus bundles in `deploy-build-test`, verification in `reporting.md` plus Rules, docs plus decision logs plus doc-code consistency in `doc-audit-reference`.
 
-## Phase 1 — Launch 7 scoped subagents in parallel
+## Phase 1 — Launch scoped subagents in parallel
 
-Use `subagent` with `agent: explore` or `agent: general`. Run all 7 in one parallel block. Each agent reads its one scope reference and the shared explanation instructions in `reporting.md`. Do not give it the other scope references. Each stays read-only. No edits, no commits.
+Use one `subagent` with `agent: explore` or `agent: general` per scope reference below. Run them in one parallel block. Each agent reads its one scope reference and the shared explanation instructions in `reporting.md`. Do not give it the other scope references. Each stays read-only. No edits, no commits.
+
+Apply the shared checks across each assigned area, including existing issues. A diff can provide context but does not limit this audit to new or changed code.
 
 1. `backend-domain.md`
 2. `backend-api-persist.md`
 3. `frontend-state.md`
 4. `frontend-domain.md`
-5. `contracts-types.md`
-6. `deploy-build-test.md`
-7. `doc-audit-reference.md`
+5. `ui-ux.md`
+6. `contracts-types.md`
+7. `deploy-build-test.md`
+8. `doc-audit-reference.md`
 
 Each scope returns concise findings using `reporting.md`: relevant background, the direct change, source evidence, and verification. Investigation detail is not a mandatory field in the explanation.
 

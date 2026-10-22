@@ -47,9 +47,10 @@ change and its affected behavior:
 | Computation, rules, resolvers, versioned pipelines, history, snapshots, claims | `backend-domain.md` |
 | Endpoints, streaming, caches, auth, origin handling, store ownership, sync, migrations | `backend-api-persist.md` |
 | Stores, remote queries, adapters, client schemas, streams, render cost | `frontend-state.md` |
-| Client domain logic, shared components, visual ownership, layout, interaction | `frontend-domain.md` |
+| Client domain logic, date/time calculations, server-computable summaries | `frontend-domain.md` |
+| Design vocabulary, visual ownership, composition, layout, interaction, accessibility | `ui-ux.md` |
 | Shared contracts, dates, parsing, external data, worker messages, types, duplicated mechanisms | `contracts-types.md` |
-| File placement, deployment, build, tests, fixtures, dependencies, errors, CSS, accessibility, security, bundles | `deploy-build-test.md` |
+| File placement, deployment, build, tests, fixtures, dependencies, errors, security, bundles | `deploy-build-test.md` |
 | Documentation, decision logs, API contracts, generated specs, claims about changed behavior | `doc-audit-reference.md` |
 | Explanation, source evidence, terminology, and verification reporting | `reporting.md` |
 
