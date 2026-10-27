@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Legacy fallback. Prefer agent-browser (see ~/.config/opencode/shot.md).
+// Legacy fallback. Prefer agent-browser (see the `screenshot` skill).
 // Usage: node shoot.cjs <url> <out.png> [--full] [--wait ms] [--width N] [--height N]
 // Run from project root or frontend dir so `playwright` resolves.
 const fs = require("fs");

@@ -51,7 +51,7 @@ Skip render check when the diff proves no visual change. Such edits include copy
 
 ### Explicit Screenshot Requests Override Selectivity
 
-If the user asks for a screenshot, capture and embed it in the same reply. The selectivity rule above never applies to an explicit request. Never reply with file paths and wait for the user to ask for markdown.
+If the user asks for a screenshot, use the `screenshot` skill. The selectivity rule above never applies to an explicit request.
 
 ### Prefer DOM and Hierarchy Over Screenshots
 
@@ -67,11 +67,10 @@ Follow this order:
 - Prefer `agent-browser` over per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`).
   Load its version-matched guide first: `npx -y agent-browser skills get core`.
   Per-repo server, port, wait, seeding, and attach rules live in the repo cheat-sheet
-  (e.g. `~/.config/opencode/shot.md` globally, or `frontend/scripts/shot.md` when the repo owns one); follow it when one exists.
+  (e.g. `frontend/scripts/shot.md`); follow it when one exists.
   Core loop: named session per worktree, `open`, `snapshot -i`, `click`/`fill` by ref,
   `wait --text` (never `networkidle` on SSE/polling pages), `screenshot --annotate`.
-- Output to `~/tmp-shots/` only. Never `mkdir /tmp/opencode`. Never commit shots.
-- Embed each shot in the same reply with one markdown line using the absolute path: `![label](/home/simho/tmp-shots/<name>.png)`. Never use `file://` URLs. Never reply with bare paths and wait for the user to ask for markdown.
+- Output, embed, and self-review rules live in the `screenshot` skill. Follow it for every capture.
 
 ### 5. Report
 

@@ -71,17 +71,6 @@ Split commits into semantic chunks by default when the session includes multiple
 
 - Do not probe `which`.
 
-# Screenshots - Obey First Request
-
-A screenshot request is a render request. The words screenshot, show me, and show here all mean the same action.
-
-- If the user asks for a screenshot, capture the UI and embed the image in the same reply. Never reply with file paths and wait for the user to ask for markdown.
-- Prefer `agent-browser` for ad-hoc UI shots. Load its version-matched guide first: `npx -y agent-browser skills get core`. The global cheat-sheet is `~/.config/opencode/shot.md`; follow the repo cheat-sheet (e.g. `frontend/scripts/shot.md`) when the repo owns one.
-- Use a named session per worktree. Never use the default shared session.
-- Save shots to `~/tmp-shots/` only. Never write to `/tmp/opencode`. Never commit shots.
-- Embed with one markdown line per shot using the absolute path: `![label](/home/simho/tmp-shots/<name>.png)`. Never use `file://` URLs. Never use relative paths.
-- After capture, always `read` the PNG and judge overlap, overflow, and cut text yourself before you report.
-
 # Responses - Use 60% of ASD-STE100 for explanations
 
 Use 60% of ASD-STE100 Simplified Technical English for explanations only.
