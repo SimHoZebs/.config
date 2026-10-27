@@ -67,6 +67,14 @@ Split commits into semantic chunks by default when the session includes multiple
 - For accepted corrections, request delta review in the same reviewer session. For other scope changes, require a new review.
 - Review supplements the checks in `verification-before-completion`.
 
+## Worktrees and Push Policy
+
+- Work in an isolated worktree on a feature branch for concurrent tasks. Never implement parallel tasks in the shared checkout (`/home/simho/.config` on `ansible`, `/home/simho/projects/net-worth-estimator` on `main`).
+- Start each task with a read-only preflight: `git status -sb`, `git log --oneline origin/<branch>..HEAD`, and check for `rebase-merge/` or `rebase-apply/`. If the tree is dirty, behind, or mid-rebase and you do not own that state, stop and report. Do not run `pull --rebase`, `rebase --continue`, `reset`, or `checkout --` on a tree you do not own.
+- Workers never merge to the trunk branch, never push the trunk branch, never amend commits they do not own, and never use `--force` on trunk. Commit in semantic chunks on the feature branch and push only the feature branch. The parent session owns fetch, rebase onto origin, conflict resolution, merge to trunk, and push of trunk.
+- Follow the default without asking: commit and push the feature branch when the commit gate passes; leave trunk alone. Do not ask "should I commit / merge / push / rebase?" unless the task explicitly overrides this policy.
+- End each task report with: branch, `HEAD` vs origin, `status -sb`, and pushed commit hashes.
+
 ## Toolchain
 
 - Do not probe `which`.
