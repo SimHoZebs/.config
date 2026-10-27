@@ -36,3 +36,8 @@
 # Exclude specific items within included directories
 tmux/plugins/
 opencode/*-key
+opencode/opencode.db
+opencode/service.json
+opencode/plugins/kimaki/
+opencode/plugins/kimaki-anthropic/
+__pycache__/
