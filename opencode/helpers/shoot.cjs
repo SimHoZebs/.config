@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Shared screenshot helper. Do not copy per task. Reuse as is.
+// Legacy fallback. Prefer agent-browser (see ~/.config/opencode/shot.md).
 // Usage: node shoot.cjs <url> <out.png> [--full] [--wait ms] [--width N] [--height N]
 // Run from project root or frontend dir so `playwright` resolves.
 const fs = require("fs");
@@ -33,7 +33,13 @@ try {
     if (msg.type() === "error") errors.push(msg.text().slice(0, 300));
   });
   page.on("pageerror", (err) => errors.push(String(err).slice(0, 300)));
-  await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+  try {
+    await page.goto(url, { waitUntil: "networkidle", timeout: 15000 });
+  } catch {
+    // Stochastic SSE keeps the network alive, so networkidle times out on a
+    // ready UI. Fall back instead of failing. Bump --wait on slow SPA pages.
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  }
   await page.waitForTimeout(wait);
   await page.screenshot({ path: out, fullPage: full });
   console.log(JSON.stringify({ out, errors: errors.slice(0, 10) }));

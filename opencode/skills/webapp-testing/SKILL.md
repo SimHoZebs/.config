@@ -49,6 +49,10 @@ Verify rendered output only when the edit changes visual result or user flow. Su
 
 Skip render check when the diff proves no visual change. Such edits include copy-only text, comments, type renames, isolated utils, prop renames with same output, or backend-only logic. State reason in report.
 
+### Explicit Screenshot Requests Override Selectivity
+
+If the user asks for a screenshot, capture and embed it in the same reply. The selectivity rule above never applies to an explicit request. Never reply with file paths and wait for the user to ask for markdown.
+
 ### Prefer DOM and Hierarchy Over Screenshots
 
 Prefer `browser_snapshot`, evaluated DOM, and rendered HTML over `browser_take_screenshot`. Screenshots need vision and hide structure. DOM shows hierarchy, props, and missing data.
@@ -60,9 +64,14 @@ Follow this order:
 4. Use screenshot only when risk is visual: spacing, overlap, responsive break, theme, animation, or brand style. State why screenshot was needed.
 
 - After screenshot, always `read` the image and judge overflow/overlap/cut text yourself.
-- Never write per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`). Use the shared helper from project root or `frontend/` dir:
-  `node ~/.config/opencode/helpers/shoot.cjs <url> ~/tmp-shots/<name>.png [--full]`.
+- Prefer `agent-browser` over per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`).
+  Load its version-matched guide first: `npx -y agent-browser skills get core`.
+  Per-repo server, port, wait, seeding, and attach rules live in the repo cheat-sheet
+  (e.g. `~/.config/opencode/shot.md` globally, or `frontend/scripts/shot.md` when the repo owns one); follow it when one exists.
+  Core loop: named session per worktree, `open`, `snapshot -i`, `click`/`fill` by ref,
+  `wait --text` (never `networkidle` on SSE/polling pages), `screenshot --annotate`.
 - Output to `~/tmp-shots/` only. Never `mkdir /tmp/opencode`. Never commit shots.
+- Embed each shot in the same reply with one markdown line using the absolute path: `![label](/home/simho/tmp-shots/<name>.png)`. Never use `file://` URLs. Never reply with bare paths and wait for the user to ask for markdown.
 
 ### 5. Report
 
