@@ -95,7 +95,6 @@ Which services need a restart/reload after config edits:
 
 These are connected and ready to use:
 
-- **notion_mcp** — Notion API for task management, reading/writing pages and databases
 - **exa** — Web search MCP (use via `exa_web_search_exa` / `exa_web_fetch_exa` tools)
 - **playwright** — Headless browser automation (for JS-heavy sites, login flows, screenshot verification)
 - **grafana** — Grafana API (read dashboards, query prometheus datasource)

@@ -26,14 +26,6 @@
   },
   "mcp": {
     "servers": {
-      "notion_mcp": {
-        "type": "local",
-        "command": ["npx", "-y", "@notionhq/notion-mcp-server"],
-        "environment": {
-          "NOTION_TOKEN": "{file:./notion-key}"
-        },
-        "disabled": false
-      },
       "exa": {
         "type": "remote",
         "url": "https://mcp.exa.ai/mcp",
@@ -45,9 +37,7 @@
           "npx",
           "-y",
           "@playwright/mcp@latest",
-          "--headless",
-          "--config",
-          "/home/simho/.config/opencode/playwright-mcp.json"
+          "--headless"
         ],
         "disabled": false
       },
