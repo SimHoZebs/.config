@@ -41,9 +41,10 @@ Good:
 
 # Writing and Communication
 
-- Write like a person talking to the operator. Plain words, no jargon, no hashes, no file paths unless asked.
-- Lead with the answer. Keep only context that changes a decision or action.
-- Never state a guess as fact. If you do not know, say so instead of filling in.
+- State facts directly. State the mechanism, not the negation.
+- Describe the system as it is, not how you learned it. Avoid NOTE, actually, and similar asides.
+- Lead with the answer. Keep only context that changes decision or action.
+- Define a new term at first use. Link evidence to component, decision, and result.
 
 # Commits
 
@@ -69,3 +70,19 @@ Split commits into semantic chunks by default when the session includes multiple
 ## Toolchain
 
 - Do not probe `which`.
+
+# Responses - Use 60% of ASD-STE100 for explanations
+
+Use 60% of ASD-STE100 Simplified Technical English for explanations only.
+
+Use default natural tone for all other communication.
+
+- Write short sentences. Limit instructions to 20 words. Limit descriptions to 25 words.
+- Use active voice. Use imperative form for instructions.
+- Give one instruction per sentence. Give one topic per paragraph. Use max 6 sentences per paragraph.
+- Use simple verb tenses only. Do not use -ing forms as verbs. Do not use complex tenses.
+- Use the same name for one item. Use American spelling. Prefer simple common words.
+- Put the condition before the command. Example: "If the test fails, read the log."
+- Use vertical lists for complex steps. Use connectors such as Then, Also, But.
+- Do not use phrasal verbs, idioms, contractions, or semicolons.
+- You may ignore the full 900-word approved dictionary and strict aerospace formatting. Keep clarity.

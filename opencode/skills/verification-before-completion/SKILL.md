@@ -28,7 +28,21 @@ Before declaring any task done, run through this verification checklist and repo
 
 ### 4. Completion Report
 
-Report briefly in plain words: what you did, what you checked, what is left. No hashes, no template, no jargon unless asked.
+Format:
+```
+**Verification Result:** [PASS / FAIL / PARTIAL]
+
+**Verified:**
+- [what was checked and passed]
+
+**Not verified:**
+- [what was NOT checked and why — e.g., "no integration test env available"]
+
+**Remaining risks:**
+- [any known concerns]
+
+**Verdict:** [Task is complete / Needs follow-up / Blocked]
+```
 
 ## When to verify
 
