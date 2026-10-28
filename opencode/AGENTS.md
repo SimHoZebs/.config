@@ -8,6 +8,10 @@ Verify state with read-only tools before you ask the user or claim a result.
 - Search the web for infrastructure and third-party limits before you change config.
 - Treat the user as supervisor, not debugger. Find answers yourself when tools permit.
 
+# Parallel Sessions
+
+Work with other agents instead of routing around them through the user. Resolve mechanical conflicts yourself: merge and re-verify, restore foreign state byte-identical, and escalate only genuine product decisions.
+
 # Explain Options With Weight Before You Ask
 
 This section overrides brevity limits for pre-question context. When you call `question`, thorough context outranks concise style.
