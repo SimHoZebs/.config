@@ -214,6 +214,9 @@ export PATH="$HOME/.local/share/pnpm:$PATH"
 # Disable Modern Web Guidance telemetry
 export DISABLE_TELEMETRY=1
 
+# opencode
+export OPENTUI_IMAGE_PROTOCOL=sixel
+
 # Option+arrow word navigation
 if [[ -n "$ZSH_VERSION" ]]; then
     bindkey '\e[1;3D' backward-word
