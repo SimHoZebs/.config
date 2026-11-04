@@ -17,7 +17,8 @@ advances.
 
 For a delta review, report whether each cited finding is `DISCHARGED`, `NOT
 DISCHARGED`, or `PARTIALLY DISCHARGED`, plus defects introduced by that correction.
-Do not reopen previously cleared surface.
+Do not reopen previously cleared surface unless the correction interacts with
+previously cleared code — then re-trace that surface and report the disposition.
 
 For a review of a new or changed target, return:
 
@@ -26,7 +27,12 @@ For a review of a new or changed target, return:
 3. required context or evidence;
 4. evidence-grounded nits when in scope;
 5. verification run or not run, including material coverage gaps;
-6. material residual risks; and
-7. `NO ACTIONABLE FINDINGS`, `CHANGES REQUIRED`, `RECONSIDER CHANGE` when evidence
-   challenges the implementation's justification, or `NEEDS DECISION` for a
-   user-owned choice.
+6. material residual risks;
+7. failure-catalog attestation (`Failure-catalog classes checked: [...]`) and
+   sibling-grep evidence; and
+8. `DIFF CLEAR; PRODUCT/RUNTIME NOT ASSESSED` when runtime or product evidence is
+   absent and that lane was not run, `NO ACTIONABLE FINDINGS` only for the staged
+   diff when runtime/product evidence is attached or the lane is genuinely N/A
+   with a stated reason, `CHANGES REQUIRED` if any cited item remains `NOT DISCHARGED`, `RECONSIDER CHANGE`
+   when evidence challenges the implementation's justification, or `NEEDS DECISION`
+   for a user-owned choice.

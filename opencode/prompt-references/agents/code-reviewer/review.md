@@ -77,6 +77,19 @@ Use the references' verification checks where applicable. Report unavailable
 runtime, screenshot, measurement, or documentation checks as verification gaps.
 Keep all checks subject to the agent's read-only verification rules.
 
+## Stack and pattern checks
+
+Before assessing correctness, check the change against repo stack declarations (`ARCHITECTURE.md` or equivalent, when present):
+- Native-first: `<dialog>`, `<progress>`, CSS `scroll-behavior`/`overscroll-behavior` before JS modal / focus-trap / scroll-lock / scroll-animation machinery; no `querySelector` in React.
+- Single-implementation: one chart stack (migrate-all-or-list-exceptions), one sender/coordinator, one review pipeline, one Sankey.
+- Size/responsibility: god hook/file, disjoint-slice reducer, `TODO: split` debt.
+
+Flag `RECONSIDER CHANGE` when evidence supports reusing an established mechanism instead of the proposed path. Local similarity to the pattern being deleted is not reuse evidence.
+
+## Failure catalog
+
+Read `~/.config/opencode/prompt-references/agents/code-reviewer/failure-catalog.md` before assessing a new change. Check each relevant class. Attest `Failure-catalog classes checked: [...]` in output. Missing attestation invalidates a clean verdict.
+
 ## Finding bar
 
 A defect includes severity, confidence, `file:line` when possible, triggering input

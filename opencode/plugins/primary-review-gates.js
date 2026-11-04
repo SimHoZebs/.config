@@ -5,7 +5,7 @@ export const PRIMARY_REVIEW_POLICY = [
   "",
   "When independent review is required or requested:",
   "",
-  "- Pass only intent, scope, constraints, relevant identity, and evidence; the selected reviewer already carries its procedure.",
+  "- Pass intent, scope, constraints, stack exceptions (every exception to declared stack rules, or \"none\"), product invariant reference (CONTEXT.md/ADR/visible copy, or \"none\"), relevant identity, and evidence; the selected reviewer already carries its procedure.",
   "- Let the submitted change and its affected behavior determine the investigation. Include relevant untouched code and controlling sources.",
   "- Treat findings as evidence. Apply or reject them with cited support, use the same reviewer session for the same frozen scope, and stop when another exchange would only repeat the record.",
   "- A changed target requires fresh review. Verification still requires the relevant tests, builds, lints, or runtime checks.",

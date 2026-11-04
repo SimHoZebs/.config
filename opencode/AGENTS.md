@@ -61,15 +61,17 @@ Split commits into semantic chunks by default when the session includes multiple
 ## Required code review
 
 - Before each commit on any branch, require `code-change-reviewer` for the exact staged diff and its affected behavior.
-- Provide intent, commit scope, constraints, and verification results. Exclude unrelated changes.
-- Keep reviewer invocations brief: intent, exact staged scope, exceptional constraints, and a one-line verification summary.
+- Provide intent, exact scope, stack exceptions (every exception to declared stack rules, or "none"), product invariant reference (CONTEXT.md/ADR/visible copy, or "none"), and verification results. Exclude unrelated changes.
 - The reviewer obtains repository state and supporting evidence itself.
 - Do not repeat its responsibilities, enumerate staged files, or supply hash inventories.
+- **Reviewer spawn failure blocks the commit.** Retry with a named fallback model (e.g. a configured model ID) or stop. Self-review never counts as a gate pass. Log the spawn failure (session, error, time).
+- A clean verdict with any `NOT DISCHARGED` item is invalid. One-line corrections land pre-commit or are filed as outstanding.
+- A verdict of `NO ACTIONABLE FINDINGS` covers only the staged diff. When runtime or product evidence is absent, the verdict must read `DIFF CLEAR; PRODUCT/RUNTIME NOT ASSESSED`.
 - Fix accepted findings. Reject unsupported findings with cited evidence.
 - Block the commit if actionable findings remain unresolved or the review is incomplete.
 - Reuse an existing review only when it covers the exact staged content.
 - For accepted corrections, request delta review in the same reviewer session. For other scope changes, require a new review.
-- Review supplements the checks in `verification-before-completion`.
+- Review supplements the checks in `verification-before-completion`. It does not replace deterministic lints for stack, native-first, perf, and god-file rules in the repo where such lints exist.
 
 ## Toolchain
 
