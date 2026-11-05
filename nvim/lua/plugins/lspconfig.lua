@@ -145,7 +145,6 @@ return {
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         basedpyright = {},
-        biome = {},
         clangd = {},
         gopls = {},
         lua_ls = {
@@ -191,9 +190,7 @@ return {
           'stylua', -- Used to format lua code
           'basedpyright',
           'ruff',
-          'biome',
           'gopls',
-          'prettierd',
           'eslint_d',
           'clangd',
           'clang-format',

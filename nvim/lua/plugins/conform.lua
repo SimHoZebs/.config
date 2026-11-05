@@ -1,12 +1,3 @@
-local js = function()
-  local file = vim.fs.find({ 'biome.json' }, { type = 'file', upward = true })[1]
-  if file then
-    return { 'biome' }
-  else
-    return { 'prettierd' }
-  end
-end
-
 vim.g.autoformat_enabled = true
 
 return {
@@ -34,21 +25,26 @@ return {
       formatters_by_ft = {
         lua = { 'stylua' },
         htmldjango = { 'djlint' },
-        html = js,
-        javascript = js,
-        typescript = js,
-        typescriptreact = js,
-        javascriptreact = js,
-        json = js,
+        html = { 'oxfmt' },
+        javascript = { 'oxfmt' },
+        typescript = { 'oxfmt' },
+        typescriptreact = { 'oxfmt' },
+        javascriptreact = { 'oxfmt' },
+        json = { 'oxfmt' },
         python = { 'ruff_format' },
-        markdown = { 'prettierd' },
-        astro = { 'prettierd' },
+        markdown = { 'oxfmt' },
+        astro = { 'oxfmt' },
         kotlin = { 'ktlint' },
         php = { 'pretty-php' },
-        yaml = { 'prettierd' },
+        yaml = { 'oxfmt' },
         nginx = { 'nginxfmt' },
       },
       formatters = {
+        oxfmt = {
+          command = 'oxfmt',
+          args = { '--stdin-filepath', '$FILENAME' },
+          stdin = true,
+        },
         ktlint = {
           prepend_args = function(_, ctx)
             return {
