@@ -1,50 +1,47 @@
 ---
 name: webapp-testing
-description: Toolkit for interacting with and testing local web applications using opencode browse (the browse MCP server / CLI). Supports verifying frontend functionality, debugging UI behavior, capturing screenshots, viewing browser console and network logs, and inspecting rendered DOM state.
+description: Toolkit for interacting with and testing local web applications using Playwright browser tools. Supports verifying frontend functionality, debugging UI behavior, capturing screenshots, viewing browser console and network logs, and inspecting rendered DOM state.
 ---
 
 # Web Application Testing
 
-Use opencode browse (the `browse` MCP server / CLI) to interact with and test local web applications. Browse runs deterministic Playwright code in your visible Chromium browser with inspect → act → verify. The agent reference is `browse skill`.
+Use the available browser tools (navigate, click, snapshot, screenshot, evaluate, console_messages, network_requests) to interact with and test local web applications.
 
 ## Setup
 
 The dev server must be running before testing. If not already started:
 1. Start the dev server in a terminal (e.g., `npm run dev`, `python manage.py runserver`)
 2. Note the URL (typically `http://localhost:5173`, `http://localhost:3000`, etc.)
-3. `browse session new test` (MCP: `browse_session_new`), then inspect with `browse execute --session test 'await page.goto("<url>"); return await snapshot()'`
+3. Navigate to the URL using the browser tool
 
 ## Testing Workflow
 
 ### 1. Reconnaissance
 
-Navigate to the app and inspect before acting:
-- `browse execute --session test 'await page.goto("<url>"); return await snapshot()'` — compact snapshot (refs like `e12`)
-- For detail, use `ariaSnapshot()` or `page.evaluate()` for rendered DOM
-- For the visual state, use `page.screenshot({ path: files.path(...) })` or `screenshotWithLabels()` — only when the risk is visual
-- Console: `pageConsole.start()` / `pageConsole.stop()` around the action under test
-- Network: `browse network start --session test --url /api/` then `browse network stop` to a HAR (MCP: `network` tool). Use `files.write()` for artifacts.
+Navigate to the app and take a snapshot to understand the rendered state:
+- Use `browser_snapshot` to get the accessibility tree
+- Use `browser_take_screenshot` to capture the visual state
+- Use `browser_console_messages` to check for errors in the console
+- Use `browser_network_requests` to inspect API calls
 
 ### 2. Identify Selectors
 
-From the snapshot, identify the elements to interact with — buttons, inputs, links, etc. Resolve them with `ref("e12")` or by role (`page.getByRole("button", { name: "Submit" })`).
+From the snapshot and screenshot, identify the elements to interact with — buttons, inputs, links, etc.
 
 ### 3. Execute Actions
 
-Act through the narrowest stable control, keeping dependent steps together:
-- `await ref("e12").click()` for clicks
-- `await page.getByLabel("Email").fill("me@example.com")` or `await ref("e12").fill("text")` for typing
-- `await page.getByRole("combobox").selectOption([...])` for dropdowns
-- `await page.getByRole("heading", { name: "Settings" }).waitFor()` plus a URL assert to verify the destination — never treat a click as proof
-
-After each action, re-inspect (`snapshot()`) and check for `aftermath.challenge`.
+Use the browser tools to interact with the app:
+- `browser_fill_form` for filling multiple fields
+- `browser_type` for typing into editable elements
+- `browser_click` for clicking buttons, links
+- `browser_select_option` for dropdowns
 
 ### 4. Verify Behavior
 
 After each action, verify the expected behavior:
-- Fresh `snapshot()` or screenshot to see the result
-- Console via `pageConsole` and network via HAR
-- Capture each network flow at least twice with different inputs before turning it into direct HTTP calls
+- Snapshot or screenshot to see the result
+- Check console for errors
+- Check network requests for API calls
 
 ### Selective Verification — Check Render Only When Needed
 
@@ -58,7 +55,7 @@ If the user asks for a screenshot, use the `screenshot` skill. The selectivity r
 
 ### Prefer DOM and Hierarchy Over Screenshots
 
-Prefer `snapshot()`, evaluated DOM, and rendered HTML over screenshots. Screenshots need vision and hide structure. DOM shows hierarchy, props, and missing data.
+Prefer `browser_snapshot`, evaluated DOM, and rendered HTML over `browser_take_screenshot`. Screenshots need vision and hide structure. DOM shows hierarchy, props, and missing data.
 
 Follow this order:
 1. Read component split and hierarchy from code.
@@ -67,14 +64,14 @@ Follow this order:
 4. Use screenshot only when risk is visual: spacing, overlap, responsive break, theme, animation, or brand style. State why screenshot was needed.
 
 - After screenshot, always `read` the image and judge overflow/overlap/cut text yourself.
-- Use opencode browse over per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`).
+- Prefer `agent-browser` over per-task screenshot scripts (`*.spec.ts`, `shots-*.cjs`, `*-shots.mjs`).
+  Load its version-matched guide first: `npx -y agent-browser skills get core`.
   Per-repo server, port, wait, seeding, and attach rules live in the repo cheat-sheet
   (e.g. `frontend/scripts/shot.md`); follow it when one exists.
-  Core loop: `session new`, `execute` with `goto` + `snapshot()`, `ref().click()` / `fill` by ref,
-  wait for text or a stable element (never `networkidle` on SSE/polling pages), `page.screenshot` or `screenshotWithLabels`.
-  For login, 2FA, passkey, or payment, use `handoff()` and verify afterwards. Never solve challenges yourself.
+  Core loop: named session per worktree, `open`, `snapshot -i`, `click`/`fill` by ref,
+  `wait --text` (never `networkidle` on SSE/polling pages), `screenshot --annotate`.
 - Output, embed, and self-review rules live in the `screenshot` skill. Follow it for every capture.
 
 ### 5. Report
 
-Report what was tested, what passed, what failed, and any errors found. Reset or delete your session when done (`browse session reset test`).
+Report what was tested, what passed, what failed, and any errors found.
