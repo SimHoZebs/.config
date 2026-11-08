@@ -214,7 +214,7 @@ export PATH="$HOME/.local/share/pnpm:$PATH"
 # Disable Modern Web Guidance telemetry
 export DISABLE_TELEMETRY=1
 
-# opencode
+# opencode: sixel images; plugins/sixel-images forces the protocol inside tmux
 export OPENTUI_IMAGE_PROTOCOL=sixel
 
 # Option+arrow word navigation

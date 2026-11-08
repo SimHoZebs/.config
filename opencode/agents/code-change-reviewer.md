@@ -1,7 +1,6 @@
 ---
 description: Reviews a local change for correctness, architectural fit, reuse, and evidence-backed scope risks.
 mode: subagent
-model: opencode-go/muse-spark-1.3-contributor
 steps: 40
 color: "#ff6b6b"
 ---
