@@ -43,7 +43,9 @@
       },
       "grafana": {
         "type": "local",
-        "command": ["/home/simho/.config/opencode/bin/mcp-grafana"],
+        "command": [
+          "/home/simho/.config/opencode/bin/mcp-grafana"
+        ],
         "environment": {
           "GRAFANA_URL": "https://grafana.home.simho.xyz",
           "GRAFANA_SERVICE_ACCOUNT_TOKEN": "{file:./grafana-key}"

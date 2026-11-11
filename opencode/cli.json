@@ -6,7 +6,7 @@
   "session": {
     "sidebar": "auto",
     "scrollbar": false,
-    "thinking": "show",
+    "thinking": "hide",
     "permissions": "autoaccept",
     "image_preview": true
   },

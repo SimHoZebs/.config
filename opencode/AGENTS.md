@@ -33,11 +33,13 @@ Rules for that text:
 - If you cannot state weight, investigate first. Do not ask to explore.
 
 Bad, do not do this:
+
 > Fit is clear. I will propose a location and exact rule text.
 > [question with 3 equal buttons]
 > Findings, options, and weight follow. I will ask after the summary.
 
 Good:
+
 > Findings: X. Impact: Y. Option A touches 2 files, runs on every edit, costs N sec, reverses by delete. Option B touches docs only, runs on demand. Weight: strong take for B because [evidence]. Fixed regardless: Z.
 > [question with 2-3 options, descriptions self-sufficient]
 
@@ -52,19 +54,23 @@ Good:
 
 # Commits
 
-Split commits into semantic chunks by default when the session includes multiple changes.
+One semantic chunk is the complete set of changes intended to go together. Keep each semantic chunk in one commit.
 
 - Group changes by purpose, not by file or timing.
-- Keep each commit small and reviewable.
+- Keep a feature and fixes found during its development or review in the same commit.
+- Include the tests, documentation, and configuration needed for that complete change.
+- Split commits only for independent changes with separate purposes, not for intermediate fixes within one feature.
+- A change is independent only if it functions as intended in production as-is, even if all later work stops indefinitely.
+- Keep each complete commit reviewable. Do not fragment a semantic chunk just to make commits smaller.
 - Verify at commit gate per `verification-before-completion` skill. No full suite per hunk.
 
 ## Required code review
 
-- Before each commit on any branch, require `code-change-reviewer` for the exact staged diff and its affected behavior.
+- Agent prompt and instruction-only updates, including `AGENTS.md`, do not require code review.
+- For every other commit, require `code-change-reviewer` for the exact staged diff and its affected behavior. In mixed commits, review the non-prompt changes.
 - Provide intent, exact scope, stack exceptions (every exception to declared stack rules, or "none"), product invariant reference (CONTEXT.md/ADR/visible copy, or "none"), and verification results. Exclude unrelated changes.
 - The reviewer obtains repository state and supporting evidence itself.
 - Do not repeat its responsibilities, enumerate staged files, or supply hash inventories.
-- **Reviewer spawn failure blocks the commit.** Retry with a named fallback model (e.g. a configured model ID) or stop. Self-review never counts as a gate pass. Log the spawn failure (session, error, time).
 - A clean verdict with any `NOT DISCHARGED` item is invalid. One-line corrections land pre-commit or are filed as outstanding.
 - A verdict of `NO ACTIONABLE FINDINGS` covers only the staged diff. When runtime or product evidence is absent, the verdict must read `DIFF CLEAR; PRODUCT/RUNTIME NOT ASSESSED`.
 - Fix accepted findings. Reject unsupported findings with cited evidence.
@@ -72,23 +78,3 @@ Split commits into semantic chunks by default when the session includes multiple
 - Reuse an existing review only when it covers the exact staged content.
 - For accepted corrections, request delta review in the same reviewer session. For other scope changes, require a new review.
 - Review supplements the checks in `verification-before-completion`. It does not replace deterministic lints for stack, native-first, perf, and god-file rules in the repo where such lints exist.
-
-## Toolchain
-
-- Do not probe `which`.
-
-# Responses - Use 60% of ASD-STE100 for explanations
-
-Use 60% of ASD-STE100 Simplified Technical English for explanations only.
-
-Use default natural tone for all other communication.
-
-- Write short sentences. Limit instructions to 20 words. Limit descriptions to 25 words.
-- Use active voice. Use imperative form for instructions.
-- Give one instruction per sentence. Give one topic per paragraph. Use max 6 sentences per paragraph.
-- Use simple verb tenses only. Do not use -ing forms as verbs. Do not use complex tenses.
-- Use the same name for one item. Use American spelling. Prefer simple common words.
-- Put the condition before the command. Example: "If the test fails, read the log."
-- Use vertical lists for complex steps. Use connectors such as Then, Also, But.
-- Do not use phrasal verbs, idioms, contractions, or semicolons.
-- You may ignore the full 900-word approved dictionary and strict aerospace formatting. Keep clarity.
