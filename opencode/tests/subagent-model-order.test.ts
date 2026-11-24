@@ -1,8 +1,11 @@
-import { describe, expect, test } from "bun:test"
+import { beforeEach, describe, expect, test } from "bun:test"
 import SubagentModelOrder, {
   SUBAGENT_MODEL_PREFERENCES,
+  clearRateLimitRegistry,
   formatModelPreference,
+  isModelRateLimited,
   isUsableModel,
+  markModelRateLimited,
   selectSubagentModel,
   type ModelPreference,
   type ModelRef,
@@ -36,10 +39,19 @@ function modelRef(preference: ModelPreference): ModelRef {
   }
 }
 
+type RetryHookEvent = {
+  model: { providerID: string; id: string }
+  error: { type?: string; message?: string; status?: number }
+  decision?: { retry?: boolean; delay?: unknown }
+}
+
+type RetryHookHandler = (event: RetryHookEvent) => void | Promise<void>
+
 async function setupHook(initialModels: CatalogModel[]) {
   let models = initialModels
   let listCalls = 0
   let hook: BeforeHook | undefined
+  let retryHandler: RetryHookHandler | undefined
 
   await SubagentModelOrder.setup({
     model: {
@@ -54,6 +66,13 @@ async function setupHook(initialModels: CatalogModel[]) {
         hook = callback
       },
     },
+    session: {
+      hook: async (name, callback) => {
+        expect(name).toBe("retry")
+        retryHandler = callback as RetryHookHandler
+        return { dispose: () => undefined }
+      },
+    },
   })
 
   return {
@@ -62,13 +81,19 @@ async function setupHook(initialModels: CatalogModel[]) {
       models = next
     },
     listCalls: () => listCalls,
+    emitRetry: async (event: RetryHookEvent) => {
+      await retryHandler?.(event)
+    },
   }
 }
 
 describe("subagent model selection", () => {
+  beforeEach(clearRateLimitRegistry)
+
   test("uses the exact preference order", () => {
     expect(SUBAGENT_MODEL_PREFERENCES.map(formatModelPreference)).toEqual([
       "opencode-go/hungerg-free",
+      "opencode/tidepool-alpha-free",
       "opencode-go/hy4-flash-free#high",
       "opencode/deepseek-v4.1-flash-free#max",
       "opencode-go/muse-spark-1.3-contributor#xhigh",
@@ -111,7 +136,7 @@ describe("subagent model selection", () => {
   })
 
   test("requires the requested variant to exist", () => {
-    const preference = SUBAGENT_MODEL_PREFERENCES[1]
+    const preference = SUBAGENT_MODEL_PREFERENCES.find((entry) => entry.variant)!
 
     expect(isUsableModel(catalogModel(preference, { variants: undefined }), preference)).toBe(false)
     expect(isUsableModel(catalogModel(preference, { variants: [] }), preference)).toBe(false)
@@ -199,5 +224,82 @@ describe("subagent model selection", () => {
 
     expect(plugin.listCalls()).toBe(0)
     expect(event.input.model).toBe(callerModel)
+  })
+
+  test("marks and expires rate-limit entries for a model", () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+
+    markModelRateLimited(first.providerID, first.id, 1_000, 1_000)
+    expect(isModelRateLimited(first.providerID, first.id, 1_500)).toBe(true)
+    expect(isModelRateLimited(first.providerID, first.id, 2_000)).toBe(false)
+  })
+
+  test("skips a rate-limited preference when selecting a model", () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const models = [...SUBAGENT_MODEL_PREFERENCES].reverse().map((preference) => catalogModel(preference))
+
+    markModelRateLimited(first.providerID, first.id)
+
+    expect(selectSubagentModel(models)).toEqual(modelRef(SUBAGENT_MODEL_PREFERENCES[1]))
+  })
+
+  test("marks the retry hook's model on status 429 even without rate-limit text", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const second = SUBAGENT_MODEL_PREFERENCES[1]
+    const plugin = await setupHook([catalogModel(first), catalogModel(second)])
+
+    await plugin.emitRetry({
+      model: { providerID: first.providerID, id: first.id },
+      error: { type: "provider.server_error", status: 429 },
+    })
+
+    expect(isModelRateLimited(first.providerID, first.id)).toBe(true)
+
+    const launch: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Investigate" } }
+    await plugin.run(launch)
+    expect(launch.input.model).toBe(formatModelPreference(second))
+  })
+
+  test("marks rate limits classified by message text alone", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const plugin = await setupHook([catalogModel(first)])
+
+    await plugin.emitRetry({
+      model: { providerID: first.providerID, id: first.id },
+      error: { type: "provider.error", message: "rate limit reached, retry later" },
+    })
+
+    expect(isModelRateLimited(first.providerID, first.id)).toBe(true)
+  })
+
+  test("passes the retry decision delay into the cooldown when available", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const plugin = await setupHook([catalogModel(first)])
+
+    await plugin.emitRetry({
+      model: { providerID: first.providerID, id: first.id },
+      error: { type: "provider.rate-limit", status: 429 },
+      decision: { retry: true, delay: 120_000 },
+    })
+
+    expect(isModelRateLimited(first.providerID, first.id, Date.now() + 61_000)).toBe(true)
+  })
+
+  test("a zero delay creates no active cooldown", () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    markModelRateLimited(first.providerID, first.id, 0)
+    expect(isModelRateLimited(first.providerID, first.id)).toBe(false)
+  })
+
+  test("ignores retries that are not rate-limit errors", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const plugin = await setupHook([catalogModel(first)])
+
+    await plugin.emitRetry({
+      model: { providerID: first.providerID, id: first.id },
+      error: { type: "provider.invalid-request", message: "Bad request" },
+    })
+
+    expect(isModelRateLimited(first.providerID, first.id)).toBe(false)
   })
 })
