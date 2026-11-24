@@ -59,7 +59,7 @@ Status values: `needs-review`, `accepted`, `rejected`, `deferred`, `implemented`
 
 Present findings from the directory one at a time unless the user asks for the full list or a batch. When the user decides on a finding, update the record in the same turn:
 
-- Change `status` in the finding file.
+- Change `status` in the finding file's frontmatter. Preserve `id`, `title`, `scope`, and existing decision, reference, and verification content.
 - Update the matching row in `audit-findings/README.md`.
 - Add a `## Decision` section with the reason when the finding is rejected, deferred, or superseded. Do not add a decision note to accepted findings.
 - Record the commit or verification result in an accepted finding when the change lands, then set it to `implemented`.
