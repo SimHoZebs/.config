@@ -86,6 +86,7 @@ export function isNewSubagentLaunch(tool: string, input: { sessionID?: unknown }
 async function installPlugin(ctx: PluginContext) {
   await ctx.tool.hook("execute.before", async (event) => {
     if (!isNewSubagentLaunch(event.tool, event.input)) return
+    if (event.input.model !== undefined) return
     const { data: models } = await ctx.model.list()
     event.input.model = formatModelPreference(selectSubagentModel(models))
   })

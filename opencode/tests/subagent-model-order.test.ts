@@ -119,7 +119,7 @@ describe("subagent model selection", () => {
     expect(isUsableModel(catalogModel(preference, { variants: [{ id: "high" }] }), preference)).toBe(true)
   })
 
-  test("throws with every unavailable preference instead of inheriting a caller model", () => {
+  test("throws with every unavailable preference when no model can be selected", () => {
     const unavailable = SUBAGENT_MODEL_PREFERENCES.map(formatModelPreference).join(", ")
 
     expect(() => selectSubagentModel([])).toThrow(
@@ -127,38 +127,77 @@ describe("subagent model selection", () => {
     )
   })
 
-  test("overrides only new subagent launches and refreshes the catalog on every launch", async () => {
+  test("preserves an explicit model byte-for-byte without reading the catalog", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const callerModel = "Caller/Provider-Model#Variant.Exact"
+    const plugin = await setupHook([catalogModel(first)])
+    const event = { tool: "subagent", input: { prompt: "Investigate", model: callerModel } }
+
+    await plugin.run(event)
+
+    expect(plugin.listCalls()).toBe(0)
+    expect(event.input.model).toBe(callerModel)
+  })
+
+  test("fills a missing model with the first usable preference", async () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    const models = [...SUBAGENT_MODEL_PREFERENCES].reverse().map((preference) => catalogModel(preference))
+    const plugin = await setupHook(models)
+    const event: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Investigate" } }
+
+    await plugin.run(event)
+
+    expect(plugin.listCalls()).toBe(1)
+    expect(event.input).toEqual({ prompt: "Investigate", model: formatModelPreference(first) })
+  })
+
+  test("refreshes the catalog on later missing-model launches and falls through unavailable preferences", async () => {
     const first = SUBAGENT_MODEL_PREFERENCES[0]
     const second = SUBAGENT_MODEL_PREFERENCES[1]
-    const callerModel = "caller/model#low"
     const plugin = await setupHook([catalogModel(first)])
-    const existing = { tool: "subagent", input: { sessionID: "ses_existing", model: callerModel } }
-    const otherTool = { tool: "read", input: { model: callerModel } }
+    const firstLaunch: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Investigate" } }
 
-    await plugin.run(otherTool)
-    await plugin.run(existing)
-    expect(plugin.listCalls()).toBe(0)
-    expect(otherTool.input.model).toBe(callerModel)
-    expect(existing.input.model).toBe(callerModel)
-
-    const firstLaunch: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Investigate", model: callerModel } }
     await plugin.run(firstLaunch)
     expect(plugin.listCalls()).toBe(1)
     expect(firstLaunch.input).toEqual({ prompt: "Investigate", model: formatModelPreference(first) })
 
     plugin.setModels([catalogModel(second)])
-    const secondLaunch: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Review", model: callerModel } }
+    const secondLaunch: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Review" } }
     await plugin.run(secondLaunch)
     expect(plugin.listCalls()).toBe(2)
-    expect(secondLaunch.input.model).toBe(formatModelPreference(second))
+    expect(secondLaunch.input).toEqual({ prompt: "Review", model: formatModelPreference(second) })
   })
 
-  test("aborts a new launch when no preference is usable", async () => {
+  test("leaves existing child sessions and other tools untouched", async () => {
+    const plugin = await setupHook([catalogModel(SUBAGENT_MODEL_PREFERENCES[0])])
+    const existing = { tool: "subagent", input: { sessionID: "ses_existing", prompt: "Resume" } }
+    const otherTool = { tool: "read", input: { filePath: "README.md" } }
+    const snapshot = structuredClone([existing, otherTool])
+
+    await plugin.run(existing)
+    await plugin.run(otherTool)
+
+    expect(plugin.listCalls()).toBe(0)
+    expect([existing, otherTool]).toEqual(snapshot)
+  })
+
+  test("aborts a missing-model launch when no preference is usable", async () => {
     const plugin = await setupHook([])
-    const callerModel = "caller/model"
-    const event = { tool: "subagent", input: { prompt: "Investigate", model: callerModel } }
+    const event: Parameters<BeforeHook>[0] = { tool: "subagent", input: { prompt: "Investigate" } }
 
     await expect(plugin.run(event)).rejects.toThrow("Unavailable preferences:")
+    expect(plugin.listCalls()).toBe(1)
+    expect(event.input).toEqual({ prompt: "Investigate" })
+  })
+
+  test("passes an explicit model through with an empty catalog", async () => {
+    const plugin = await setupHook([])
+    const callerModel = "caller/model#custom"
+    const event = { tool: "subagent", input: { prompt: "Investigate", model: callerModel } }
+
+    await plugin.run(event)
+
+    expect(plugin.listCalls()).toBe(0)
     expect(event.input.model).toBe(callerModel)
   })
 })
