@@ -10,3 +10,6 @@
 
 - name: Install pnpm
   import_tasks: pnpm.yml
+
+- name: Install OpenCode V2 CLI
+  import_tasks: opencode.yml

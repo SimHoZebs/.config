@@ -1,0 +1,40 @@
+---
+# Reusable before and after installation. Profile edits made by the installer
+# do not change PATH for the running Ansible process, so check both PATH and
+# the standard standalone/Homebrew locations. Override pnpm_candidate_paths
+# for a custom pnpm home or an isolated test environment.
+- name: Locate pnpm on current PATH
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - -c
+      - command -v pnpm
+  register: pnpm_path_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Check standard pnpm executable locations
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  vars:
+    pnpm_default_candidate_paths:
+      - /opt/homebrew/bin/pnpm
+      - /usr/local/bin/pnpm
+      - /home/linuxbrew/.linuxbrew/bin/pnpm
+      - "{{ ansible_facts['user_dir'] }}/Library/pnpm/bin/pnpm"
+      - "{{ ansible_facts['user_dir'] }}/Library/pnpm/pnpm"
+      - "{{ ansible_facts['user_dir'] }}/.local/share/pnpm/pnpm"
+      - "{{ ansible_facts['user_dir'] }}/.local/share/pnpm/bin/pnpm"
+      - "{{ ansible_facts['user_dir'] }}/.volta/bin/pnpm"
+      - "{{ ansible_facts['env']['PNPM_HOME'] | default(ansible_facts['user_dir'] + '/.pnpm-home-unset') }}/pnpm"
+      - "{{ ansible_facts['env']['PNPM_HOME'] | default(ansible_facts['user_dir'] + '/.pnpm-home-unset') }}/bin/pnpm"
+  loop: "{{ pnpm_candidate_paths | default(pnpm_default_candidate_paths) }}"
+  register: pnpm_candidate_stats
+
+- name: Set pnpm executable fact
+  ansible.builtin.set_fact:
+    pnpm_executable: >-
+      {{ (pnpm_path_check.stdout | trim) if pnpm_path_check.rc == 0
+         else (pnpm_candidate_stats.results | selectattr('stat.exists')
+               | map(attribute='item') | first | default('')) }}

@@ -1,28 +1,107 @@
 ---
-- name: Check if pnpm is installed
-  ansible.builtin.command:
-    cmd: pnpm --version
-  register: pnpm_check
-  failed_when: false
-  changed_when: false
+- name: Set default pnpm paths
+  ansible.builtin.set_fact:
+    pnpm_global_bin: "{{ ansible_facts['user_dir'] }}/.local/share/pnpm/bin"
+    pnpm_home: "{{ ansible_facts['user_dir'] }}/.local/share/pnpm"
+
+- name: Discover existing pnpm
+  ansible.builtin.include_tasks: pnpm-discover.yml
 
 - name: Install pnpm via Homebrew
   community.general.homebrew:
     name: pnpm
     state: present
-  when: pnpm_check.rc != 0 and has_brew
+  when: pnpm_executable | length == 0 and has_brew
 
 - name: Install pnpm via standalone script (fallback)
   ansible.builtin.shell:
     cmd: curl -fsSL https://get.pnpm.io/install.sh | sh -
   args:
     executable: /bin/bash
-  when: pnpm_check.rc != 0 and not has_brew
+  when: pnpm_executable | length == 0 and not has_brew
 
-- name: Add pnpm to PATH in .bashrc
+- name: Re-discover pnpm after installation
+  ansible.builtin.include_tasks: pnpm-discover.yml
+
+- name: Ensure pnpm executable resolved
+  ansible.builtin.assert:
+    that: pnpm_executable | length > 0
+    fail_msg: >-
+      pnpm was not found on PATH or in the standard standalone/Homebrew
+      locations after installation. Add its location to pnpm-discover.yml.
+  when: not ansible_check_mode
+
+- name: Query pnpm version
+  ansible.builtin.command:
+    argv:
+      - "{{ pnpm_executable }}"
+      - --version
+  register: pnpm_version_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  when: pnpm_executable | length > 0
+
+- name: Ensure pnpm supports OpenCode build-script allowance
+  ansible.builtin.assert:
+    that: (pnpm_version_check.stdout | trim) is version('10.4.0', '>=')
+    fail_msg: >-
+      pnpm {{ pnpm_version_check.stdout | trim }} is too old for OpenCode V2
+      installation. Upgrade pnpm to 10.4.0 or newer and rerun the playbook.
+  when: pnpm_executable | length > 0
+
+- name: Build pnpm global-bin probe PATH
+  ansible.builtin.set_fact:
+    pnpm_probe_path: >-
+      {{ (([
+            ansible_facts['user_dir'] + '/.local/share/pnpm/bin',
+            ansible_facts['user_dir'] + '/.local/share/pnpm',
+            ansible_facts['user_dir'] + '/Library/pnpm/bin',
+            ansible_facts['user_dir'] + '/Library/pnpm'
+          ]
+          + ([ansible_facts['env']['PNPM_HOME'] + '/bin',
+              ansible_facts['env']['PNPM_HOME']]
+             if ansible_facts['env']['PNPM_HOME'] | default('') else [])
+          + [ansible_facts['env']['PATH']]) | join(':')) }}
+
+- name: Query pnpm global binary directory
+  ansible.builtin.command:
+    argv:
+      - "{{ pnpm_executable }}"
+      - bin
+      - --global
+  environment:
+    PATH: "{{ pnpm_probe_path }}"
+  register: pnpm_bin_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  when: pnpm_executable | length > 0
+
+- name: Ensure pnpm layout queries succeeded
+  ansible.builtin.assert:
+    that:
+      - pnpm_version_check.rc == 0
+      - pnpm_bin_check.rc == 0
+    fail_msg: "Could not determine pnpm version or global binary directory."
+  when:
+    - not ansible_check_mode
+    - pnpm_executable | length > 0
+
+# pnpm 10 returns $PNPM_HOME itself; pnpm 11+ returns $PNPM_HOME/bin.
+- name: Set resolved pnpm layout facts
+  ansible.builtin.set_fact:
+    pnpm_global_bin: "{{ pnpm_bin_check.stdout | trim }}"
+    pnpm_home: >-
+      {{ ((pnpm_bin_check.stdout | trim | dirname)
+          if (pnpm_version_check.stdout | regex_search('^([0-9]+)') | int) >= 11
+          else (pnpm_bin_check.stdout | trim)) }}
+  when: pnpm_executable | length > 0
+
+- name: Add pnpm global binaries to PATH in .bashrc
   ansible.builtin.lineinfile:
     path: ~/.config/.bashrc
-    line: 'export PATH="$HOME/.local/share/pnpm:$PATH"'
+    line: 'export PATH="{{ pnpm_global_bin }}:$PATH"'
     regexp: 'export PATH.*pnpm'
     state: present
-  when: not has_brew
+  when: pnpm_executable | length > 0

@@ -28,6 +28,7 @@
 !windows-setup.ps1
 !gitmux.conf
 !package.json
+!topgrade.toml
 !playbook.yml
 !windows-playbook.yml
 !requirements.yml

@@ -1,0 +1,81 @@
+---
+# Official V2 install: pnpm add -g --allow-build=@opencode/cli @opencode/cli
+# https://opencode.ai/docs/
+- name: Check installed OpenCode version on current PATH
+  ansible.builtin.command:
+    cmd: opencode --version
+  register: opencode_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+# pnpm may have been installed earlier in this same play, so its global bin
+# directory is not necessarily on the Ansible process's PATH yet.
+- name: Check pnpm-managed OpenCode version
+  ansible.builtin.command:
+    argv:
+      - "{{ pnpm_global_bin }}/opencode"
+      - --version
+  register: opencode_pnpm_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Reject legacy OpenCode V1 installation on PATH
+  ansible.builtin.fail:
+    msg: >-
+      OpenCode V1 is installed on PATH. Remove the legacy Homebrew/curl
+      installation before installing V2 so the old binary does not shadow the
+      pnpm-installed V2 binary.
+  when:
+    - opencode_check.rc == 0
+    - not (opencode_check.stdout is match('^opencode v2\.'))
+
+- name: Reject legacy OpenCode V1 installation in pnpm global bin
+  ansible.builtin.fail:
+    msg: >-
+      OpenCode V1 is installed in {{ pnpm_global_bin }}. Remove it before
+      installing V2.
+  when:
+    - opencode_pnpm_check.rc == 0
+    - not (opencode_pnpm_check.stdout is match('^opencode v2\.'))
+
+# The explicit --allow-build flag requires pnpm 10.4+ and is needed because
+# newer pnpm releases block package build scripts by default. @opencode/cli
+# uses one to select the native binary.
+- name: Install OpenCode V2 CLI globally via pnpm
+  ansible.builtin.command:
+    argv:
+      - "{{ pnpm_executable }}"
+      - add
+      - --global
+      - --allow-build=@opencode/cli
+      - "@opencode/cli@latest"
+  environment:
+    PNPM_HOME: "{{ pnpm_home }}"
+    PATH: "{{ pnpm_global_bin }}:{{ ansible_facts['env']['PATH'] }}"
+  when:
+    - opencode_check.rc != 0
+    - opencode_pnpm_check.rc != 0
+    - pnpm_executable | length > 0
+
+- name: Verify installed OpenCode version
+  ansible.builtin.command:
+    argv:
+      - "{{ pnpm_global_bin }}/opencode"
+      - --version
+  register: opencode_install_check
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - opencode_check.rc != 0
+    - opencode_pnpm_check.rc != 0
+
+- name: Assert installed OpenCode is V2
+  ansible.builtin.assert:
+    that: opencode_install_check.stdout is match('^opencode v2\.')
+    fail_msg: "OpenCode installation did not produce a V2 binary in {{ pnpm_global_bin }}."
+  when:
+    - not ansible_check_mode
+    - opencode_check.rc != 0
+    - opencode_pnpm_check.rc != 0
