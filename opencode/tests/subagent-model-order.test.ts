@@ -94,6 +94,7 @@ describe("subagent model selection", () => {
     expect(SUBAGENT_MODEL_PREFERENCES.map(formatModelPreference)).toEqual([
       "opencode-go/hungerg-free",
       "opencode/tidepool-alpha-free",
+      "opencode/seaglass-alpha-free",
       "opencode-go/hy4-flash-free#high",
       "opencode/deepseek-v4.1-flash-free#max",
       "opencode-go/muse-spark-1.3-contributor#xhigh",
@@ -289,6 +290,14 @@ describe("subagent model selection", () => {
     const first = SUBAGENT_MODEL_PREFERENCES[0]
     markModelRateLimited(first.providerID, first.id, 0)
     expect(isModelRateLimited(first.providerID, first.id)).toBe(false)
+  })
+
+  test("a later retry hook cannot shorten an existing fallback cooldown", () => {
+    const first = SUBAGENT_MODEL_PREFERENCES[0]
+    markModelRateLimited(first.providerID, first.id, 60_000, 1_000)
+    markModelRateLimited(first.providerID, first.id, 0, 1_001)
+    expect(isModelRateLimited(first.providerID, first.id, 60_000)).toBe(true)
+    expect(isModelRateLimited(first.providerID, first.id, 61_000)).toBe(false)
   })
 
   test("ignores retries that are not rate-limit errors", async () => {

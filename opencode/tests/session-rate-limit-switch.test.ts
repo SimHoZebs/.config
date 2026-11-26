@@ -1,206 +1,249 @@
-import { describe, expect, test } from "bun:test"
-import SessionRateLimitSwitch, {
-  isRateLimitError,
-  isRateLimited,
-  markRateLimited,
-  selectAlternativeModel,
-} from "../plugins/session-rate-limit-switch"
+import { beforeEach, describe, expect, test } from "bun:test"
+import SessionRateLimitSwitch, { isFallbackError, selectAlternativeModel } from "../plugins/session-rate-limit-switch"
+import { SUBAGENT_MODEL_PREFERENCES, clearRateLimitRegistry, isModelRateLimited } from "../plugins/subagent-model-order"
 
-type CatalogModel = {
-  providerID: string
-  id: string
-  type?: string
-  enabled: boolean
-  status: string
-  capabilities?: { tools?: boolean }
-  variants?: readonly { id: string }[]
-}
-
-function catalogModel(providerID: string, id: string, overrides: Partial<CatalogModel> = {}): CatalogModel {
-  return {
-    providerID,
-    id,
-    type: "chat",
-    enabled: true,
-    status: "active",
-    capabilities: { tools: true },
-    variants: [],
-    ...overrides,
-  }
-}
-
+const preferences = SUBAGENT_MODEL_PREFERENCES
+const models = preferences.map((model) => ({
+  ...model,
+  enabled: true,
+  status: "active",
+  capabilities: { tools: true },
+  variants: model.variant ? [{ id: model.variant }] : [],
+}))
+type Model = { providerID: string; id: string; variant?: string }
 type RetryEvent = {
   sessionID: string
-  model: { providerID: string; id: string }
-  error: { type?: string; message?: string; status?: number }
+  model: Model
+  error?: { type?: string; message?: string; status?: number; retryAfterMs?: unknown }
   decision?: { retry?: boolean; delay?: unknown }
 }
 
-async function setupPlugin(models: CatalogModel[], session?: { parentID?: string }) {
-  let retryHandler: ((event: RetryEvent) => void | Promise<void>) | undefined
+async function setupPlugin(options: { main?: boolean; failSwitches?: number; catalog?: typeof models } = {}) {
+  let handler: (event: RetryEvent) => void | Promise<void>
+  const switched: Model[] = []
   let listCalls = 0
-  const switched: { sessionID: string; model: { providerID: string; id: string } }[] = []
-
-  await SessionRateLimitSwitch.setup({
-    model: {
-      list: async () => {
-        listCalls += 1
-        return { data: models }
-      },
-    },
+  let disposed = false
+  const cleanup = await SessionRateLimitSwitch.setup({
+    model: { list: async () => {
+      listCalls++
+      return { data: options.catalog ?? models }
+    } },
     session: {
-      get: async () => ({ parentID: session?.parentID }),
-      hook: async (name, callback) => {
-        expect(name).toBe("retry")
-        retryHandler = callback as (event: RetryEvent) => void | Promise<void>
-        return { dispose: () => undefined }
+      get: async () => options.main ? {} : { parentID: "ses_parent" },
+      hook: async (_name, callback) => {
+        handler = callback
+        return { dispose: () => { disposed = true } }
       },
-      switchModel: async (input) => {
-        switched.push(input)
+      switchModel: async ({ model }) => {
+        switched.push(model)
+        if (switched.length <= (options.failSwitches ?? 0)) throw new Error("Model is unavailable")
       },
     },
   })
-
   return {
-    emit: async (event: RetryEvent) => retryHandler?.(event),
-    listCalls: () => listCalls,
+    emit: (event: RetryEvent) => handler(event),
     switched,
+    listCalls: () => listCalls,
+    cleanup,
+    disposed: () => disposed,
   }
 }
 
-describe("session rate-limit switch", () => {
-  test("switches a sub-agent when the retry delay is over 300 seconds", async () => {
-    const first = catalogModel("opencode-go", "hungerg-free")
-    const second = catalogModel("opencode", "tidepool-alpha-free")
-    const plugin = await setupPlugin([first, second], { parentID: "ses_parent" })
+function failure(model: Model = preferences[0], sessionID = "ses_child"): RetryEvent {
+  return {
+    sessionID, model,
+    error: { type: "provider.invalid-request", message: "Upstream request failed: Model is unavailable.", status: 400 },
+    decision: { retry: false },
+  }
+}
 
-    await plugin.emit({
-      sessionID: "ses_a",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.rate-limit", status: 429 },
-      decision: { retry: true, delay: 600_000 },
-    })
+describe("ordered subagent fallback", () => {
+  beforeEach(clearRateLimitRegistry)
 
-    expect(plugin.switched).toEqual([{ sessionID: "ses_a", model: { providerID: second.providerID, id: second.id } }])
-  })
-
-  test("does not switch at or below 300 seconds", async () => {
-    const first = catalogModel("opencode-go", "hungerg-free")
-    const plugin = await setupPlugin([first, catalogModel("opencode", "tidepool-alpha-free")], { parentID: "ses_parent" })
-
-    await plugin.emit({
-      sessionID: "ses_a",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.rate-limit", status: 429 },
-      decision: { retry: true, delay: 300_000 },
-    })
-
-    expect(plugin.switched).toEqual([])
-  })
-
-  test("main sessions do not list models, mutate rate limits, or consume the switch cap", async () => {
-    const session: { parentID?: string } = {}
-    const first = catalogModel("main-guard", "current")
-    const second = catalogModel("main-guard", "alternative")
-    const plugin = await setupPlugin([first, second], session)
-    const event: RetryEvent = {
-      sessionID: "ses_main",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.rate-limit", status: 429 },
-      decision: { retry: true, delay: 600_000 },
-    }
-
-    for (let index = 0; index < 4; index += 1) await plugin.emit(event)
-
-    expect(plugin.listCalls()).toBe(0)
-    expect(plugin.switched).toEqual([])
-    expect(isRateLimited(first.providerID, first.id)).toBe(false)
-
-    session.parentID = "ses_parent"
+  test("retries a terminal unavailable-model failure immediately after switching", async () => {
+    const plugin = await setupPlugin()
+    const event = failure()
     await plugin.emit(event)
-    expect(plugin.listCalls()).toBe(1)
-    expect(plugin.switched).toEqual([{ sessionID: "ses_main", model: { providerID: second.providerID, id: second.id } }])
+    expect(plugin.switched).toEqual([preferences[1]])
+    expect(event.decision).toEqual({ retry: true, delay: 0 })
   })
 
-  test("does not switch when the retry delay is missing", async () => {
-    const first = catalogModel("opencode-go", "hungerg-free")
-    const plugin = await setupPlugin([first, catalogModel("opencode", "tidepool-alpha-free")], { parentID: "ses_parent" })
-
-    await plugin.emit({
-      sessionID: "ses_a",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.rate-limit", status: 429 },
-    })
-
-    expect(plugin.switched).toEqual([])
-  })
-
-  test("ignores non-finite and non-number delays without mutating rate limits", async () => {
-    const first = catalogModel("delay-guard", "current")
-    const plugin = await setupPlugin([first, catalogModel("delay-guard", "alternative")], { parentID: "ses_parent" })
-
-    for (const delay of [Number.POSITIVE_INFINITY, "600000"]) {
-      await plugin.emit({
-        sessionID: "ses_a",
-        model: { providerID: first.providerID, id: first.id },
-        error: { type: "provider.rate-limit", status: 429 },
-        decision: { retry: true, delay },
-      })
+  test("walks the entire priority list beyond three switches, preserving variants", async () => {
+    const plugin = await setupPlugin({ catalog: [...models].reverse() })
+    for (const model of preferences) {
+      const event = failure(model)
+      await plugin.emit(event)
+      expect(event.decision).toEqual(model === preferences.at(-1) ? { retry: false } : { retry: true, delay: 0 })
     }
+    expect(plugin.switched).toEqual(preferences.slice(1))
+  })
 
+  test("continues past rejected switches in the same retry hook", async () => {
+    const plugin = await setupPlugin({ failSwitches: 2 })
+    const event = failure()
+    await plugin.emit(event)
+    expect(plugin.switched).toEqual(preferences.slice(1, 4))
+    expect(event.decision).toEqual({ retry: true, delay: 0 })
+  })
+
+  test("never loops back to already attempted models after their cooldown expires", async () => {
+    const plugin = await setupPlugin()
+    await plugin.emit(failure())
+    clearRateLimitRegistry()
+    await plugin.emit(failure(preferences[1]))
+    expect(plugin.switched).toEqual(preferences.slice(1, 3))
+  })
+
+  test("rate limits keep the original retry at or below 300 seconds, or without a valid wait", async () => {
+    for (const delay of [0, 1_000, 300_000, undefined, Infinity, "600000"]) {
+      clearRateLimitRegistry()
+      const plugin = await setupPlugin()
+      const event = failure()
+      event.error = { status: 429 }
+      event.decision = { retry: true, delay }
+      await plugin.emit(event)
+      expect(plugin.switched).toEqual([])
+      expect(plugin.listCalls()).toBe(0)
+      expect(event.decision).toEqual({ retry: true, delay })
+    }
+  })
+
+  test("rate limits switch only when the wait exceeds 300 seconds", async () => {
+    const plugin = await setupPlugin()
+    const event = failure()
+    event.error = { status: 429 }
+    event.decision = { retry: true, delay: 300_001 }
+    await plugin.emit(event)
+    expect(plugin.switched).toEqual([preferences[1]])
+    expect(isModelRateLimited(preferences[0].providerID, preferences[0].id)).toBe(true)
+    expect(event.decision).toEqual({ retry: true, delay: 0 })
+  })
+
+  test("a terminal free-limit error uses the provider wait and preserves its full cooldown", async () => {
+    const plugin = await setupPlugin()
+    const event = failure(preferences[2])
+    event.error = {
+      type: "provider.free-limit",
+      message: "Free usage limit reached.",
+      status: 429,
+      retryAfterMs: 56_650_000,
+    }
+    const now = Date.now()
+    await plugin.emit(event)
+    expect(plugin.switched).toEqual([preferences[3]])
+    expect(event.decision).toEqual({ retry: true, delay: 0 })
+    expect(isModelRateLimited(event.model.providerID, event.model.id, now + 56_649_000)).toBe(true)
+  })
+
+  test("uses the longer valid wait when provider and retry policy disagree", async () => {
+    for (const [providerWait, policyWait] of [[600_000, 1_000], [1_000, 600_000]]) {
+      clearRateLimitRegistry()
+      const plugin = await setupPlugin()
+      const event = failure()
+      event.error = { status: 429, retryAfterMs: providerWait }
+      event.decision = { retry: true, delay: policyWait }
+      await plugin.emit(event)
+      expect(plugin.switched).toEqual([preferences[1]])
+      expect(event.decision).toEqual({ retry: true, delay: 0 })
+    }
+  })
+
+  test("short provider waits preserve the original retry decision", async () => {
+    for (const retryAfterMs of [0, 1_000, 300_000]) {
+      const plugin = await setupPlugin()
+      const event = failure()
+      event.error = { status: 429, retryAfterMs }
+      event.decision = { retry: true, delay: 1_000 }
+      await plugin.emit(event)
+      expect(plugin.switched).toEqual([])
+      expect(event.decision).toEqual({ retry: true, delay: 1_000 })
+    }
+  })
+
+  test("invalid provider waits neither trigger fallback nor mask a valid policy wait", async () => {
+    for (const retryAfterMs of [NaN, Infinity, -1, "600000", null]) {
+      clearRateLimitRegistry()
+      const plugin = await setupPlugin()
+      const event = failure()
+      event.error = { status: 429, retryAfterMs }
+      await plugin.emit(event)
+      expect(plugin.switched).toEqual([])
+      expect(event.decision).toEqual({ retry: false })
+      event.decision = { retry: true, delay: 600_000 }
+      await plugin.emit(event)
+      expect(plugin.switched).toEqual([preferences[1]])
+    }
+  })
+
+  test("main sessions stay untouched", async () => {
+    const plugin = await setupPlugin({ main: true })
+    const event = failure()
+    await plugin.emit(event)
     expect(plugin.listCalls()).toBe(0)
     expect(plugin.switched).toEqual([])
-    expect(isRateLimited(first.providerID, first.id)).toBe(false)
+    expect(isModelRateLimited(event.model.providerID, event.model.id)).toBe(false)
+    expect(event.decision).toEqual({ retry: false })
   })
 
-  test("does not switch when the retry is not a rate limit", async () => {
-    const first = catalogModel("opencode-go", "hungerg-free")
-    const plugin = await setupPlugin([first, catalogModel("opencode", "tidepool-alpha-free")], { parentID: "ses_parent" })
-
-    await plugin.emit({
-      sessionID: "ses_a",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.invalid-request", message: "Bad request" },
-      decision: { retry: true, delay: 600_000 },
-    })
-
+  test("unrelated invalid requests stay terminal", async () => {
+    const plugin = await setupPlugin()
+    const event = failure()
+    event.error = { type: "provider.invalid-request", status: 400, message: "Invalid tool schema" }
+    await plugin.emit(event)
+    expect(plugin.listCalls()).toBe(0)
     expect(plugin.switched).toEqual([])
   })
 
-  test("does not switch when no alternative is available", async () => {
-    const first = catalogModel("opencode-go", "hungerg-free")
-    const plugin = await setupPlugin([first], { parentID: "ses_parent" })
-
-    await plugin.emit({
-      sessionID: "ses_a",
-      model: { providerID: first.providerID, id: first.id },
-      error: { type: "provider.rate-limit", status: 429 },
-      decision: { retry: true, delay: 600_000 },
-    })
-
+  test("exhaustion preserves the original retry policy", async () => {
+    const plugin = await setupPlugin({ catalog: [] })
+    const event = failure()
+    await plugin.emit(event)
     expect(plugin.switched).toEqual([])
+    expect(event.decision).toEqual({ retry: false })
   })
 
-  test("isRateLimitError matches status 429 and rate-limit text but not plain errors", () => {
-    expect(isRateLimitError({ status: 429, type: "provider.server_error" })).toBe(true)
-    expect(isRateLimitError({ type: "provider.error", message: "rate limit reached" })).toBe(true)
-    expect(isRateLimitError({ type: "provider.invalid-request", message: "Bad request" })).toBe(false)
-    expect(isRateLimitError(undefined)).toBe(false)
+  test("selection follows preferences, never arbitrary catalog models or earlier entries", () => {
+    expect(selectAlternativeModel([...models].reverse(), preferences[1])).toEqual(preferences[2])
+    expect(selectAlternativeModel(models, preferences.at(-1)!)).toBeUndefined()
+    expect(selectAlternativeModel([{ ...models[0], id: "gpt-6.2" }], preferences[0])).toBeUndefined()
   })
 
-  test("selectAlternativeModel skips the current model, non-chat, and rate-limited models", () => {
-    const current = { providerID: "opencode-go", id: "hungerg-free" }
-    const others = [catalogModel("opencode", "tidepool-alpha-free"), catalogModel("openai", "gpt-6.1-terra")]
+  test("selection skips disabled, deprecated, non-chat, tool-incapable, and variant-missing entries", () => {
+    for (const overrides of [
+      { enabled: false }, { status: "deprecated" }, { type: "image" },
+      { capabilities: { tools: false } },
+    ]) {
+      const catalog = models.map((model, index) => index === 1 ? { ...model, ...overrides } : model)
+      expect(selectAlternativeModel(catalog, preferences[0])).toEqual(preferences[2])
+    }
+    const index = preferences.findIndex((model) => model.variant)
+    const catalog = models.map((model, i) => i === index ? { ...model, variants: [] } : model)
+    expect(selectAlternativeModel(catalog, preferences[index - 1])).toEqual(preferences[index + 1])
+  })
 
-    expect(selectAlternativeModel([catalogModel(current.providerID, current.id), ...others], current)).toEqual({
-      providerID: "opencode",
-      id: "tidepool-alpha-free",
-    })
+  test("an explicitly requested model outside the list can fall back to the first preference", () => {
+    expect(selectAlternativeModel(models, { providerID: "caller", id: "requested" })).toEqual(preferences[0])
+  })
 
-    markRateLimited(others[0].providerID, others[0].id)
-    expect(selectAlternativeModel([catalogModel(current.providerID, current.id), ...others], current)).toEqual({
-      providerID: "openai",
-      id: "gpt-6.1-terra",
-    })
+  test("failed switches exhaust the finite list without changing the retry decision", async () => {
+    const plugin = await setupPlugin({ failSwitches: preferences.length })
+    const event = failure()
+    await plugin.emit(event)
+    expect(plugin.switched).toEqual(preferences.slice(1))
+    expect(event.decision).toEqual({ retry: false })
+  })
+
+  test("classifies model availability and rate limits narrowly", () => {
+    expect(isFallbackError({ status: 429 })).toBe(true)
+    expect(isFallbackError({ status: 503 })).toBe(false)
+    expect(isFallbackError(failure().error)).toBe(true)
+    expect(isFallbackError({ status: 401, message: "Unauthorized" })).toBe(false)
+    expect(isFallbackError(undefined)).toBe(false)
+  })
+
+  test("disposes the hook on unload", async () => {
+    const plugin = await setupPlugin()
+    await plugin.cleanup?.()
+    expect(plugin.disposed()).toBe(true)
   })
 })

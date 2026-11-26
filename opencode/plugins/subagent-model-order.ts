@@ -63,6 +63,7 @@ type PluginContext = {
 export const SUBAGENT_MODEL_PREFERENCES: readonly ModelPreference[] = [
   { providerID: "opencode-go", id: "hungerg-free" },
   { providerID: "opencode", id: "tidepool-alpha-free" },
+  { providerID: "opencode", id: "seaglass-alpha-free" },
   { providerID: "opencode-go", id: "hy4-flash-free", variant: "high" },
   { providerID: "opencode", id: "deepseek-v4.1-flash-free", variant: "max" },
   { providerID: "opencode-go", id: "muse-spark-1.3-contributor", variant: "xhigh" },
@@ -92,7 +93,8 @@ export function markModelRateLimited(
     typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs)
       ? Math.max(0, retryAfterMs)
       : DEFAULT_RATE_LIMIT_WINDOW_MS
-  rateLimitedUntil.set(rateLimitKey(providerID, id), now + after)
+  const key = rateLimitKey(providerID, id)
+  rateLimitedUntil.set(key, Math.max(rateLimitedUntil.get(key) ?? 0, now + after))
 }
 
 export function isModelRateLimited(providerID: string, id: string, now: number = Date.now()) {

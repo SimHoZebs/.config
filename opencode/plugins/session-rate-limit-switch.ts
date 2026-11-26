@@ -1,6 +1,14 @@
+import {
+  SUBAGENT_MODEL_PREFERENCES,
+  isUsableModel,
+  markModelRateLimited,
+  type ModelRef,
+} from "./subagent-model-order"
+
 type ModelInfo = {
   providerID: string
   id: string
+  modelID?: string
   type?: string
   enabled: boolean
   status: string
@@ -8,16 +16,11 @@ type ModelInfo = {
   variants?: readonly { id: string }[]
 }
 
-type ModelRef = {
-  providerID: string
-  id: string
-}
-
 type RetryHookEvent = {
   readonly sessionID: string
   readonly model: ModelRef
-  readonly error?: { type?: unknown; message?: unknown; status?: unknown }
-  readonly decision?: { delay?: unknown }
+  readonly error?: { type?: unknown; message?: unknown; status?: unknown; retryAfterMs?: unknown }
+  decision?: { retry?: boolean; delay?: unknown }
 }
 
 type Registration = {
@@ -40,79 +43,75 @@ type PluginContext = {
   session?: SessionDomain
 }
 
-const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000
-const MIN_SWITCH_DELAY_MS = 300_000
-
-const rateLimitedUntil = new Map<string, number>()
-
-function rateLimitKey(providerID: string, id: string) {
-  return `${providerID}/${id}`
-}
-
-export function markRateLimited(
-  providerID: string,
-  id: string,
-  retryAfterMs?: number | null,
-  now: number = Date.now(),
-) {
-  const after =
-    typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs)
-      ? Math.max(0, retryAfterMs)
-      : DEFAULT_RATE_LIMIT_WINDOW_MS
-  rateLimitedUntil.set(rateLimitKey(providerID, id), now + after)
-}
-
-export function isRateLimited(providerID: string, id: string, now: number = Date.now()) {
-  const key = rateLimitKey(providerID, id)
-  const until = rateLimitedUntil.get(key)
-  if (until === undefined) return false
-  if (now < until) return true
-  rateLimitedUntil.delete(key)
-  return false
-}
-
 export function isRateLimitError(error: RetryHookEvent["error"]) {
   const text = [error?.type, error?.message].filter((value): value is string => typeof value === "string").join(" ")
   if (typeof error?.status === "number" && error.status === 429) return true
   return /rate.?limit|too.?many.?requests|quota|throttl|exhaust/i.test(text)
 }
 
-function isSwappableModel(model: ModelInfo | undefined, current: ModelRef) {
-  if (!model) return false
-  if (model.providerID === current.providerID && model.id === current.id) return false
-  if ((model.type ?? "chat") !== "chat") return false
-  if (!model.enabled || model.status === "deprecated") return false
-  if (model.capabilities?.tools !== true) return false
-  return !isRateLimited(model.providerID, model.id)
+export function isFallbackError(error: RetryHookEvent["error"]) {
+  if (isRateLimitError(error)) return true
+  return typeof error?.message === "string" && /\bmodel\b.{0,80}\b(unavailable|not available|not found)\b/i.test(error.message)
 }
 
-export function selectAlternativeModel(models: readonly ModelInfo[], current: ModelRef): ModelRef | undefined {
-  for (const model of models) {
-    if (isSwappableModel(model, current)) return { providerID: model.providerID, id: model.id }
+function retryWait(event: RetryHookEvent) {
+  const waits = [event.decision?.delay, event.error?.retryAfterMs].filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0,
+  )
+  return waits.length ? Math.max(...waits) : undefined
+}
+
+export function selectAlternativeModel(
+  models: readonly ModelInfo[],
+  current: ModelRef,
+  attempted: ReadonlySet<string> = new Set(),
+): ModelRef | undefined {
+  const index = SUBAGENT_MODEL_PREFERENCES.findIndex((model) => model.providerID === current.providerID && model.id === current.id)
+  for (const preference of SUBAGENT_MODEL_PREFERENCES.slice(index + 1)) {
+    if (attempted.has(`${preference.providerID}/${preference.id}`)) continue
+    const model = models.find((model) => model.providerID === preference.providerID && model.id === preference.id)
+    if (!isUsableModel(model ? { ...model, modelID: model.modelID ?? model.id } : undefined, preference)) continue
+    return { ...preference }
   }
   return undefined
 }
 
 async function installPlugin(ctx: PluginContext) {
-  if (typeof ctx.session?.hook !== "function") return
-  const switches = new Map<string, number>()
-  return await ctx.session.hook("retry", async (event) => {
-    if (!isRateLimitError(event?.error)) return
-    const delay = event?.decision?.delay
-    if (typeof delay !== "number" || !Number.isFinite(delay) || delay <= MIN_SWITCH_DELAY_MS) return
+  if (typeof ctx.session?.hook !== "function" || typeof ctx.session.switchModel !== "function") return
+  const attempts = new Map<string, Set<string>>()
+  const registration = await ctx.session.hook("retry", async (event) => {
+    if (!isFallbackError(event?.error)) return
+    const delay = retryWait(event)
+    if (isRateLimitError(event.error) &&
+      (typeof delay !== "number" || !Number.isFinite(delay) || delay <= 300_000)) return
     const session = await ctx.session?.get?.({ sessionID: event.sessionID }).catch(() => undefined)
     if (typeof session?.parentID !== "string" || session.parentID.length === 0) return
     const model = event?.model
     if (typeof model?.providerID !== "string" || typeof model?.id !== "string") return
-    const used = switches.get(event.sessionID) ?? 0
-    if (used >= 3) return
-    switches.set(event.sessionID, used + 1)
+    const attempted = attempts.get(event.sessionID) ?? new Set<string>()
+    attempts.set(event.sessionID, attempted)
+    attempted.add(`${model.providerID}/${model.id}`)
+    markModelRateLimited(model.providerID, model.id,
+      typeof delay === "number" && delay > 0 ? delay : undefined)
     const { data: models } = await ctx.model.list().catch(() => ({ data: [] as ModelInfo[] }))
-    const alternative = selectAlternativeModel(models, model)
-    if (!alternative) return
-    markRateLimited(model.providerID, model.id, delay)
-    await ctx.session?.switchModel?.({ sessionID: event.sessionID, model: alternative })
+    let current = model
+    while (true) {
+      const alternative = selectAlternativeModel(models, current, attempted)
+      if (!alternative) return
+      attempted.add(`${alternative.providerID}/${alternative.id}`)
+      try {
+        await ctx.session!.switchModel!({ sessionID: event.sessionID, model: alternative })
+        event.decision = { retry: true, delay: 0 }
+        return
+      } catch {
+        current = alternative
+      }
+    }
   })
+  return () => {
+    attempts.clear()
+    return registration?.dispose()
+  }
 }
 
 export default {
