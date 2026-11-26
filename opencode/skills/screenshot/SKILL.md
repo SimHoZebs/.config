@@ -37,6 +37,8 @@ Per-repo server, port, wait, and seeding rules live in the repo cheat-sheet (e.g
 
 ## Video
 
+Use WebM (`.webm`) for recordings and animated demos. Keep the original WebM output; do not convert recordings to GIF unless the user explicitly requests GIF.
+
 ```bash
 npx -y agent-browser --session "$AGENT_BROWSER_SESSION" open <url>
 npx -y agent-browser --session "$AGENT_BROWSER_SESSION" record start ~/tmp-shots/<name>.webm

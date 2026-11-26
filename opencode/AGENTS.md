@@ -39,6 +39,8 @@ Good:
 
 # Writing and Communication
 
+- Deliver UI recordings and animated demos as `.webm` files. Earlier examples or repository defaults that call for GIFs should use WebM instead unless the user explicitly requests GIF for the current task. If chat cannot play WebM inline, share the recording as a link with a PNG preview.
+
 - State facts directly. State the mechanism, not the negation.
 - Use concrete examples and diagrams where it fits.
 - Describe the system as it is, not how you learned it. Avoid NOTE, actually, and similar asides.
